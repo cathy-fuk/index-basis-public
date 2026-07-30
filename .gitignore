@@ -1,0 +1,4 @@
+data/*.tmp
+data/*.json.tmp
+.DS_Store
+Thumbs.db

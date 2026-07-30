@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="四大股指期货基差、期内分红校正与年化升贴水率历史走势">
+  <meta name="color-scheme" content="light">
+  <title>股指期货基差监控</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main>
+    <header class="hero">
+      <div>
+        <span class="hero-kicker">INDEX FUTURES BASIS</span>
+        <h1>股指期货基差监控</h1>
+        <p>Wind 日频收盘 · Tinysoft 期内分红 · Windows 采集机自动同步</p>
+      </div>
+      <div class="hero-actions">
+        <div class="status"><span id="status-dot" class="status-dot"></span><span id="status-text">正在读取</span></div>
+        <div class="theme-switch" aria-label="网页配色">
+          <button id="theme-blue" type="button">蓝色专业版</button>
+          <button id="theme-red" type="button">浅灰红色版</button>
+        </div>
+      </div>
+    </header>
+
+    <section class="source-bar" aria-label="数据来源">
+      <strong>数据来源</strong>
+      <span>普通行情与普通年化率：Wind 本地授权数据库日频收盘</span>
+      <span class="source-divider">·</span>
+      <span>
+        期内分红及剔除分红年化率：
+        <a href="https://web.tinysoft.com.cn/website/index.tsl?PageID=27433"
+           target="_blank" rel="noopener noreferrer">Tinysoft 指数分红预测页面 ↗</a>
+      </span>
+    </section>
+
+    <div id="notice" class="notice" hidden></div>
+
+    <section class="toolbar" aria-label="行情筛选">
+      <div class="filter-block">
+        <label>日期区间</label>
+        <div class="date-fields">
+          <input id="start-date" type="date" aria-label="开始日期">
+          <span>至</span>
+          <input id="end-date" type="date" aria-label="结束日期">
+        </div>
+      </div>
+      <div class="filter-block">
+        <label>指数</label>
+        <div id="prefix-chips" class="chips"></div>
+      </div>
+      <div class="filter-block">
+        <label>期限</label>
+        <div id="term-chips" class="chips"></div>
+      </div>
+    </section>
+
+    <div class="section-head">
+      <div><span class="section-kicker">LATEST SNAPSHOT</span><h2>最新日频快照</h2></div>
+      <span id="updated-at" class="muted">尚未同步</span>
+    </div>
+    <section id="card-grid" class="card-grid"></section>
+
+    <section class="table-shell">
+      <div class="table-scroll">
+        <table>
+          <thead><tr>
+            <th>合约</th><th>价格</th><th>涨跌额*</th><th>涨跌幅*</th><th>基差</th>
+            <th>年化升贴水率</th>
+            <th class="adjusted">年化升贴水率<br>（剔除期内分红）</th>
+            <th>期内分红</th><th>剩余天数</th><th>到期时间</th>
+          </tr></thead>
+          <tbody id="latest-table-body"></tbody>
+        </table>
+      </div>
+      <div class="table-note">
+        ⓘ 普通行情及普通年化率优先采用 Wind 日频；期内分红和年化升贴水率
+        （剔除期内分红）完整采用
+        <a href="https://web.tinysoft.com.cn/website/index.tsl?PageID=27433"
+           target="_blank" rel="noopener noreferrer">Tinysoft</a>，不等待 Wind。
+      </div>
+    </section>
+
+    <details class="formula">
+      <summary>查看计算口径与数据来源</summary>
+      <p>基差＝期货－现货；年化升贴水率＝基差÷现货×365÷剩余日历天数。</p>
+      <p>年化升贴水率（剔除期内分红）完整采用 Tinysoft 同一快照：
+        （基差＋期内分红）÷现货×365÷剩余日历天数。</p>
+      <p>所有表格和曲线均保留正负号，不取绝对值；负数表示贴水。</p>
+    </details>
+
+    <div class="section-head chart-heading">
+      <div>
+        <span class="section-kicker">HISTORICAL TREND</span>
+        <h2>年化升贴水率走势</h2>
+        <p class="muted">贴水显示在零轴下方；区间、指数与期限均可调整。</p>
+      </div>
+      <select id="metric-select" aria-label="图表指标">
+        <option value="annualizedRate">年化升贴水率</option>
+        <option value="adjustedAnnualizedRate">年化升贴水率（剔除期内分红）</option>
+      </select>
+    </div>
+    <section id="chart-grid" class="chart-grid"></section>
+
+    <footer>
+      <span>只读公共 HTML · 数据由授权 Windows 采集机生成并发布</span>
+      <span>基差口径：期货－现货</span>
+    </footer>
+  </main>
+  <script src="./app.js" defer></script>
+</body>
+</html>
