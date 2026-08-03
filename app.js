@@ -12,6 +12,7 @@ const state = {
   payload: { schemaVersion: 1, updatedAt: "", sourceDate: "", status: "awaiting-first-upload", rows: [] },
   prefixes: new Set(PREFIXES),
   terms: new Set(TERMS),
+  chartTerms: Object.fromEntries(PREFIXES.map((prefix) => [prefix, new Set(TERMS)])),
   metric: "annualizedRate",
   startDate: "",
   endDate: "",
@@ -174,7 +175,10 @@ function chartSvg(rows, prefix) {
   const width = 720;
   const height = 300;
   const pad = { left: 54, right: 20, top: 20, bottom: 38 };
-  const series = TERMS.filter((term) => state.terms.has(term)).map((term) => ({
+  const localTerms = state.chartTerms[prefix];
+  const series = TERMS.filter((term) =>
+    state.terms.has(term) && localTerms.has(term)
+  ).map((term) => ({
     term,
     points: rows.filter((row) =>
       row.prefix === prefix && row.term === term
@@ -260,9 +264,10 @@ function showChartTooltip(point, event = null) {
 function bindChartInteractions() {
   document.querySelectorAll("[data-legend-term]").forEach((button) => {
     button.addEventListener("click", () => {
+      const prefix = button.dataset.chartPrefix;
       const term = button.dataset.legendTerm;
-      state.terms.has(term) ? state.terms.delete(term) : state.terms.add(term);
-      renderChips();
+      const localTerms = state.chartTerms[prefix];
+      localTerms.has(term) ? localTerms.delete(term) : localTerms.add(term);
       renderCharts();
     });
   });
@@ -285,14 +290,19 @@ function renderCharts() {
     return;
   }
   byId("chart-grid").innerHTML = selectedPrefixes.map((prefix) => {
+    const localTerms = state.chartTerms[prefix];
     const count = rows.filter((row) => row.prefix === prefix
+      && localTerms.has(row.term)
       && row[state.metric] !== null && row[state.metric] !== undefined).length;
-    const legend = TERMS.map((term) =>
-      `<button type="button" class="legend-item ${state.terms.has(term) ? "active" : ""}"
-        data-legend-term="${term}" aria-pressed="${state.terms.has(term)}"
-        title="点击显示或隐藏${term}">
-        <i style="background:${TERM_COLORS[term]}"></i>${term}</button>`
-    ).join("");
+    const legend = TERMS.map((term) => {
+      const globallyEnabled = state.terms.has(term);
+      const active = globallyEnabled && localTerms.has(term);
+      return `<button type="button" class="legend-item ${active ? "active" : ""}"
+        data-chart-prefix="${prefix}" data-legend-term="${term}"
+        aria-pressed="${active}" ${globallyEnabled ? "" : "disabled"}
+        title="${globallyEnabled ? `仅在${prefix}图中显示或隐藏${term}` : `请先在上方期限筛选中启用${term}`}">
+        <i style="background:${TERM_COLORS[term]}"></i>${term}</button>`;
+    }).join("");
     return `<article class="chart-card">
       <div class="chart-title"><div><strong>${prefix} · ${INDEX_NAMES[prefix]}</strong>
         <small>${count} 条有效日频记录${count > 0 && count <= 4 ? "（数据较少时显示为点）" : ""}</small></div>
