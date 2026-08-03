@@ -4,6 +4,10 @@ const PREFIXES = ["IH", "IF", "IC", "IM"];
 const TERMS = ["当月", "下月", "当季", "下季"];
 const INDEX_NAMES = { IH: "上证50", IF: "沪深300", IC: "中证500", IM: "中证1000" };
 const TERM_COLORS = { 当月: "#ff8a80", 下月: "#ff6b45", 当季: "#e34a42", 下季: "#8e5d58" };
+const METRIC_LABELS = {
+  annualizedRate: "年化升贴水率",
+  adjustedAnnualizedRate: "年化升贴水率（剔除期内分红）",
+};
 const state = {
   payload: { schemaVersion: 1, updatedAt: "", sourceDate: "", status: "awaiting-first-upload", rows: [] },
   prefixes: new Set(PREFIXES),
@@ -86,7 +90,7 @@ function renderChips() {
     `<button type="button" class="chip ${state.terms.has(term) ? "active" : ""}" data-term="${term}">${term}</button>`
   ).join("");
 
-  document.querySelectorAll("[data-prefix]").forEach((button) => {
+  document.querySelectorAll("#prefix-chips [data-prefix]").forEach((button) => {
     button.addEventListener("click", () => {
       const value = button.dataset.prefix;
       state.prefixes.has(value) ? state.prefixes.delete(value) : state.prefixes.add(value);
@@ -94,7 +98,7 @@ function renderChips() {
       renderCharts();
     });
   });
-  document.querySelectorAll("[data-term]").forEach((button) => {
+  document.querySelectorAll("#term-chips [data-term]").forEach((button) => {
     button.addEventListener("click", () => {
       const value = button.dataset.term;
       state.terms.has(value) ? state.terms.delete(value) : state.terms.add(value);
@@ -117,17 +121,21 @@ function renderCards(rows) {
   byId("card-grid").innerHTML = PREFIXES.map((prefix) => {
     const nearest = rows.filter((row) => row.prefix === prefix)
       .sort((a, b) => Number(a.remainingDays) - Number(b.remainingDays))[0];
-    const ratio = nearest && Number(nearest.spotPrice)
-      ? Number(nearest.basis) / Number(nearest.spotPrice) * 100 : null;
+    const spotMoveAvailable = nearest
+      && nearest.spotChange !== null && nearest.spotChange !== undefined
+      && nearest.spotChangePct !== null && nearest.spotChangePct !== undefined;
+    const spotMove = spotMoveAvailable
+      ? `指数 ${fmt(nearest.spotChange, 2, true)} · ${fmtPercent(nearest.spotChangePct, 2, true)}`
+      : "指数日涨跌等待 Wind";
     return `<article class="index-card">
       <div class="card-top"><h3>${INDEX_NAMES[prefix]}</h3><span class="prefix-badge">${prefix}</span></div>
       <span class="eyebrow">现货指数</span>
       <strong class="spot">${nearest ? fmt(nearest.spotPrice) : "—"}</strong>
       <div class="card-foot">
-        <span class="${nearest ? valueClass(nearest.basis) : ""}">
-          ${nearest ? `${fmt(nearest.basis, 2, true)} · ${fmtPercent(ratio, 2, true)}` : "等待数据"}
+        <span class="${spotMoveAvailable ? valueClass(nearest.spotChange) : "unavailable"}"
+          title="对应现货指数日涨跌">
+          ${nearest ? spotMove : "等待数据"}
         </span>
-        <small>${nearest ? `${escapeHtml(nearest.contract)} · ${escapeHtml(nearest.term)}` : prefix}</small>
       </div>
     </article>`;
   }).join("");
@@ -199,11 +207,18 @@ function chartSvg(rows, prefix) {
     ? `<line x1="${pad.left}" x2="${width - pad.right}" y1="${y(0)}" y2="${y(0)}" class="zero-line"></line>` : "";
   const lines = series.map(({ term, points }) => {
     const coordinates = points.map((row) => `${x(row.date)},${y(Number(row[state.metric]))}`).join(" ");
-    const dots = points.map((row) =>
-      `<circle cx="${x(row.date)}" cy="${y(Number(row[state.metric]))}" r="${dates.length === 1 ? 4 : 2.3}" fill="${TERM_COLORS[term]}">
-        <title>${escapeHtml(row.date)} ${escapeHtml(term)} ${fmtPercent(row[state.metric], 2, true)}</title>
-      </circle>`
-    ).join("");
+    const dots = points.map((row) => {
+      const pointValue = fmtPercent(row[state.metric], 2, true);
+      const pointLabel = `${row.date} ${term} ${METRIC_LABELS[state.metric]} ${pointValue}`;
+      return `<g class="chart-point-group">
+        <circle class="chart-point-dot" cx="${x(row.date)}" cy="${y(Number(row[state.metric]))}"
+          r="${dates.length === 1 ? 4 : 2.3}" fill="${TERM_COLORS[term]}"></circle>
+        <circle class="chart-point-hit" cx="${x(row.date)}" cy="${y(Number(row[state.metric]))}"
+          r="11" tabindex="0" role="button" aria-label="${escapeHtml(pointLabel)}"
+          data-date="${escapeHtml(row.date)}" data-term="${escapeHtml(term)}"
+          data-value="${escapeHtml(pointValue)}"></circle>
+      </g>`;
+    }).join("");
     return `<polyline points="${coordinates}" fill="none" stroke="${TERM_COLORS[term]}" stroke-width="2.4"
       stroke-linejoin="round" stroke-linecap="round"></polyline>${dots}`;
   }).join("");
@@ -211,7 +226,55 @@ function chartSvg(rows, prefix) {
     `<text x="${x(date)}" y="${height - 10}" text-anchor="middle" class="axis-label">${escapeHtml(date)}</text>`
   ).join("");
   return `<div class="chart-wrap"><svg viewBox="0 0 ${width} ${height}" role="img"
-    aria-label="${INDEX_NAMES[prefix]}年化升贴水率走势">${grid}${zero}${lines}${dateLabels}</svg></div>`;
+    aria-label="${INDEX_NAMES[prefix]}年化升贴水率走势">${grid}${zero}${lines}${dateLabels}</svg>
+    <div class="chart-tooltip" role="status" hidden></div></div>`;
+}
+
+function hideChartTooltips(except = null) {
+  document.querySelectorAll(".chart-tooltip").forEach((tooltip) => {
+    if (tooltip !== except) tooltip.hidden = true;
+  });
+}
+
+function showChartTooltip(point, event = null) {
+  const wrap = point.closest(".chart-wrap");
+  const tooltip = wrap ? wrap.querySelector(".chart-tooltip") : null;
+  if (!wrap || !tooltip) return;
+  hideChartTooltips(tooltip);
+  tooltip.textContent = `${point.dataset.date} · ${point.dataset.term} · `
+    + `${METRIC_LABELS[state.metric]} ${point.dataset.value}`;
+  tooltip.hidden = false;
+
+  const wrapRect = wrap.getBoundingClientRect();
+  const pointRect = point.getBoundingClientRect();
+  const clientX = event && Number.isFinite(event.clientX) && event.clientX
+    ? event.clientX : pointRect.left + pointRect.width / 2;
+  const clientY = event && Number.isFinite(event.clientY) && event.clientY
+    ? event.clientY : pointRect.top + pointRect.height / 2;
+  const preferredLeft = clientX - wrapRect.left + 12;
+  const preferredTop = clientY - wrapRect.top - tooltip.offsetHeight - 12;
+  tooltip.style.left = `${Math.max(8, Math.min(preferredLeft, wrapRect.width - tooltip.offsetWidth - 8))}px`;
+  tooltip.style.top = `${Math.max(8, preferredTop)}px`;
+}
+
+function bindChartInteractions() {
+  document.querySelectorAll("[data-legend-term]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const term = button.dataset.legendTerm;
+      state.terms.has(term) ? state.terms.delete(term) : state.terms.add(term);
+      renderChips();
+      renderCharts();
+    });
+  });
+  document.querySelectorAll(".chart-point-hit").forEach((point) => {
+    point.addEventListener("pointerenter", (event) => showChartTooltip(point, event));
+    point.addEventListener("pointermove", (event) => showChartTooltip(point, event));
+    point.addEventListener("focus", () => showChartTooltip(point));
+    point.addEventListener("click", (event) => {
+      event.stopPropagation();
+      showChartTooltip(point, event);
+    });
+  });
 }
 
 function renderCharts() {
@@ -224,8 +287,11 @@ function renderCharts() {
   byId("chart-grid").innerHTML = selectedPrefixes.map((prefix) => {
     const count = rows.filter((row) => row.prefix === prefix
       && row[state.metric] !== null && row[state.metric] !== undefined).length;
-    const legend = TERMS.filter((term) => state.terms.has(term)).map((term) =>
-      `<span><i style="background:${TERM_COLORS[term]}"></i>${term}</span>`
+    const legend = TERMS.map((term) =>
+      `<button type="button" class="legend-item ${state.terms.has(term) ? "active" : ""}"
+        data-legend-term="${term}" aria-pressed="${state.terms.has(term)}"
+        title="点击显示或隐藏${term}">
+        <i style="background:${TERM_COLORS[term]}"></i>${term}</button>`
     ).join("");
     return `<article class="chart-card">
       <div class="chart-title"><div><strong>${prefix} · ${INDEX_NAMES[prefix]}</strong>
@@ -234,6 +300,7 @@ function renderCharts() {
       </div>${chartSvg(rows, prefix)}
     </article>`;
   }).join("");
+  bindChartInteractions();
 }
 
 function renderAll() {
@@ -282,6 +349,9 @@ function bindEvents() {
     state.metric = event.target.value;
     resetDateRangeForMetric();
     renderCharts();
+  });
+  byId("chart-grid").addEventListener("click", (event) => {
+    if (!event.target.closest(".chart-point-hit")) hideChartTooltips();
   });
 }
 

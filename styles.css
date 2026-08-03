@@ -83,16 +83,17 @@ input, select { min-height: 37px; padding: 7px 10px; border: 1px solid var(--lin
 .muted { margin: 0; color: var(--muted); font-size: 12px; }
 .card-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
 .index-card { padding: 19px 20px 17px; background: var(--panel); border: 1px solid var(--line); border-radius: 17px; box-shadow: 0 11px 30px rgba(36,45,63,.07); }
-.card-top, .card-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.card-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.card-foot { display: flex; align-items: center; justify-content: flex-start; gap: 12px; }
 .card-top h3 { margin: 0; font-size: 17px; }
 .prefix-badge { display: inline-grid; place-items: center; width: 27px; height: 27px; color: var(--accent); background: var(--accent-soft); border-radius: 50%; font-size: 10px; font-weight: 800; }
 .eyebrow { display: block; margin-top: 18px; color: #929bb0; font-size: 11px; }
 .spot { display: block; margin: 4px 0 15px; font-size: 25px; letter-spacing: -.02em; }
 .card-foot { padding-top: 12px; border-top: 1px solid #eff1f4; }
 .card-foot span { font-size: 12px; font-weight: 750; }
-.card-foot small { color: var(--muted); }
 .positive { color: var(--positive) !important; }
 .negative { color: var(--negative) !important; }
+.unavailable { color: #9aa2b1 !important; }
 .table-shell { margin-top: 17px; overflow: hidden; background: white; border: 1px solid var(--line); border-radius: 17px; box-shadow: 0 11px 30px rgba(36,45,63,.06); }
 .table-scroll { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; min-width: 1120px; font-size: 12px; }
@@ -113,10 +114,27 @@ td small { display: block; margin-top: 2px; color: #9aa2b1; }
 .chart-title strong, .chart-title small { display: block; }
 .chart-title small { margin-top: 4px; color: var(--muted); font-size: 10px; }
 .legend { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 9px; color: var(--muted); font-size: 10px; }
-.legend span { display: inline-flex; align-items: center; gap: 4px; }
+.legend-item {
+  display: inline-flex; align-items: center; gap: 4px; padding: 3px 5px;
+  color: var(--muted); border: 1px solid transparent; border-radius: 6px;
+  background: transparent; font-size: 10px; opacity: .38;
+}
+.legend-item:hover, .legend-item:focus-visible { border-color: var(--line); outline: none; }
+.legend-item.active { color: var(--ink); opacity: 1; }
 .legend i { width: 14px; height: 3px; border-radius: 4px; }
-.chart-wrap { width: 100%; margin-top: 10px; }
+.chart-wrap { position: relative; width: 100%; margin-top: 10px; }
 .chart-wrap svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart-point-dot { pointer-events: none; }
+.chart-point-hit { fill: transparent; stroke: transparent; cursor: crosshair; touch-action: manipulation; }
+.chart-point-group:hover .chart-point-dot,
+.chart-point-group:focus-within .chart-point-dot { stroke: white; stroke-width: 2.5; }
+.chart-tooltip {
+  position: absolute; z-index: 5; max-width: min(290px, calc(100% - 16px));
+  padding: 8px 10px; color: white; background: rgba(23,32,51,.94);
+  border-radius: 8px; box-shadow: 0 7px 20px rgba(23,32,51,.2);
+  font-size: 11px; line-height: 1.45; pointer-events: none; white-space: normal;
+}
+.chart-tooltip[hidden] { display: none; }
 .grid-line { stroke: #e9edf3; stroke-width: 1; }
 .zero-line { stroke: #8994a6; stroke-width: 1.2; }
 .axis-label { fill: #8490a3; font-size: 10px; }
