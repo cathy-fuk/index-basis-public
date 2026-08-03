@@ -67,7 +67,8 @@
       <div class="table-scroll">
         <table>
           <thead><tr>
-            <th>合约</th><th>价格</th><th>涨跌额*</th><th>涨跌幅*</th><th>基差</th>
+            <th>合约</th><th>价格</th><th>合约涨跌额</th><th>合约涨跌幅</th><th>基差</th>
+            <th>基差涨跌幅</th>
             <th>年化升贴水率</th>
             <th class="adjusted">年化升贴水率<br>（剔除期内分红）</th>
             <th>期内分红</th><th>剩余天数</th><th>到期时间</th>
@@ -83,9 +84,13 @@
       </div>
     </section>
 
+    <section id="contract-detail" class="contract-detail" hidden aria-live="polite"></section>
+
     <details class="formula">
       <summary>查看计算口径与数据来源</summary>
       <p>基差＝期货－现货；年化升贴水率＝基差÷现货×365÷剩余日历天数。</p>
+      <p>基差涨跌幅＝（当日基差－前一交易日基差）÷|前一交易日基差|；数据使用 Wind 日频收盘。</p>
+      <p>指数累计值在每个指数的首个 Wind 交易日设为 1，此后按（1＋指数日涨跌幅）逐日连乘。</p>
       <p>年化升贴水率（剔除期内分红）完整采用 Tinysoft 同一快照：
         （基差＋期内分红）÷现货×365÷剩余日历天数。</p>
       <p>所有表格和曲线均保留正负号，不取绝对值；负数表示贴水。</p>
@@ -94,12 +99,13 @@
     <div class="section-head chart-heading">
       <div>
         <span class="section-kicker">HISTORICAL TREND</span>
-        <h2>年化升贴水率走势</h2>
-        <p class="muted">贴水显示在零轴下方；区间、指数与期限均可调整。</p>
+        <h2 id="trend-title">年化升贴水率走势</h2>
+        <p id="trend-subtitle" class="muted">贴水显示在零轴下方；区间、指数与期限均可调整。</p>
       </div>
       <select id="metric-select" aria-label="图表指标">
         <option value="annualizedRate">年化升贴水率</option>
         <option value="adjustedAnnualizedRate">年化升贴水率（剔除期内分红）</option>
+        <option value="spotCumulativeValue">指数累计值</option>
       </select>
     </div>
     <section id="chart-grid" class="chart-grid"></section>

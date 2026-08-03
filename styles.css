@@ -96,7 +96,7 @@ input, select { min-height: 37px; padding: 7px 10px; border: 1px solid var(--lin
 .unavailable { color: #9aa2b1 !important; }
 .table-shell { margin-top: 17px; overflow: hidden; background: white; border: 1px solid var(--line); border-radius: 17px; box-shadow: 0 11px 30px rgba(36,45,63,.06); }
 .table-scroll { overflow-x: auto; }
-table { width: 100%; border-collapse: collapse; min-width: 1120px; font-size: 12px; }
+table { width: 100%; border-collapse: collapse; min-width: 1240px; font-size: 12px; }
 th { padding: 13px 12px; color: #5e6778; background: #f7f8fa; font-weight: 750; text-align: right; white-space: nowrap; }
 th:first-child, td:first-child { text-align: left; }
 td { padding: 12px; border-top: 1px solid var(--line); text-align: right; white-space: nowrap; }
@@ -104,6 +104,16 @@ td small { display: block; margin-top: 2px; color: #9aa2b1; }
 .adjusted { background: color-mix(in srgb, var(--accent) 5%, white); }
 .empty-cell { padding: 36px; text-align: center !important; color: var(--muted); }
 .table-note { padding: 11px 14px; color: var(--muted); background: #fafbfc; border-top: 1px solid var(--line); font-size: 11px; }
+.contract-link { padding: 0; color: var(--accent-dark); background: transparent; border: 0; border-bottom: 1px dashed color-mix(in srgb, var(--accent) 55%, white); font-weight: 800; }
+.contract-link:hover { border-bottom-style: solid; }
+.contract-detail { margin-top: 16px; padding: 20px; background: white; border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line)); border-radius: 17px; box-shadow: 0 12px 34px rgba(36,45,63,.08); scroll-margin-top: 18px; }
+.contract-detail[hidden] { display: none; }
+.detail-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+.detail-head h3 { margin: 4px 0; font-size: 20px; }
+.detail-head p { margin: 0; color: var(--muted); font-size: 11px; }
+.detail-close { padding: 7px 10px; color: var(--muted); background: #f7f8fa; border: 1px solid var(--line); border-radius: 8px; }
+.detail-table { margin-top: 12px; min-width: 1100px; }
+.detail-chart { max-width: 920px; margin-inline: auto; }
 .formula { margin-top: 12px; padding: 13px 16px; background: white; border: 1px solid var(--line); border-radius: 12px; }
 .formula summary { cursor: pointer; font-weight: 700; font-size: 13px; }
 .formula p { margin: 10px 0 0; color: var(--muted); font-size: 12px; line-height: 1.7; }
