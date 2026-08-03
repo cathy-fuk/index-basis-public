@@ -185,16 +185,32 @@ function contractDetailChart(rows) {
   max += spread * .14;
   const x = (index) => pad.left + (index / Math.max(dates.length - 1, 1)) * (width - pad.left - pad.right);
   const y = (value) => pad.top + ((max - value) / (max - min)) * (height - pad.top - pad.bottom);
+  const ticks = Array.from({ length: 5 }, (_, index) => max - ((max - min) * index) / 4);
+  const grid = ticks.map((tick) => `<g>
+    <line x1="${pad.left}" x2="${width - pad.right}" y1="${y(tick)}" y2="${y(tick)}" class="grid-line"></line>
+    <text x="${pad.left - 10}" y="${y(tick) + 4}" text-anchor="end" class="axis-label">${fmt(tick, 1)}%</text>
+  </g>`).join("");
   const coordinates = usable.map((row, index) => `${x(index)},${y(Number(row.priceChangePct))}`).join(" ");
-  const dots = usable.map((row, index) => `<circle cx="${x(index)}" cy="${y(Number(row.priceChangePct))}"
-    r="3.4" fill="#7c3aed"><title>${escapeHtml(row.date)} 合约涨跌幅 ${fmtPercent(row.priceChangePct, 2, true)}</title></circle>`).join("");
+  const dots = usable.map((row, index) => {
+    const pointValue = fmtPercent(row.priceChangePct, 2, true);
+    const pointLabel = `${row.date} IC2612 合约涨跌幅 ${pointValue}`;
+    return `<g class="chart-point-group">
+      <circle class="chart-point-dot" cx="${x(index)}" cy="${y(Number(row.priceChangePct))}"
+        r="${dates.length === 1 ? 4 : 2.8}" fill="#7c3aed"></circle>
+      <circle class="chart-point-hit" cx="${x(index)}" cy="${y(Number(row.priceChangePct))}"
+        r="11" tabindex="0" role="button" aria-label="${escapeHtml(pointLabel)}"
+        data-date="${escapeHtml(row.date)}" data-term="IC2612"
+        data-label="合约涨跌幅" data-value="${escapeHtml(pointValue)}"></circle>
+    </g>`;
+  }).join("");
   const zero = `<line x1="${pad.left}" x2="${width - pad.right}" y1="${y(0)}" y2="${y(0)}" class="zero-line"></line>`;
   const labels = [0, Math.floor((dates.length - 1) / 2), dates.length - 1]
     .filter((value, index, array) => array.indexOf(value) === index)
     .map((index) => `<text x="${x(index)}" y="${height - 9}" text-anchor="middle" class="axis-label">${escapeHtml(dates[index])}</text>`).join("");
   return `<div class="chart-wrap detail-chart"><svg viewBox="0 0 ${width} ${height}" role="img"
-    aria-label="IC2612 合约历史涨跌幅">${zero}<polyline points="${coordinates}" fill="none"
-    stroke="#7c3aed" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"></polyline>${dots}${labels}</svg></div>`;
+    aria-label="IC2612 合约历史涨跌幅">${grid}${zero}<polyline points="${coordinates}" fill="none"
+    stroke="#7c3aed" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"></polyline>${dots}${labels}</svg>
+    <div class="chart-tooltip" role="status" hidden></div></div>`;
 }
 
 function renderContractDetail(contract) {
@@ -208,8 +224,8 @@ function renderContractDetail(contract) {
   }
   const visibleRows = rows.slice(-120);
   section.innerHTML = `<div class="detail-head"><div><span class="section-kicker">CONTRACT DRILL-DOWN</span>
-    <h3>${escapeHtml(contract)} 历史详情（试验）</h3>
-    <p>${rows.length} 个日频观测；曲线为 Wind 合约涨跌幅，表格最多展示最近 120 条。</p></div>
+    <h3>${escapeHtml(contract)} 合约历史详情</h3>
+    <p>${rows.length} 个日频观测；可悬停或点击曲线查看 Wind 合约涨跌幅精确值，表格最多展示最近 120 条。</p></div>
     <button id="close-contract-detail" type="button" class="detail-close">收起 ×</button></div>
     ${contractDetailChart(rows)}
     <div class="table-scroll"><table class="detail-table"><thead><tr><th>日期</th><th>合约收盘</th>
@@ -222,6 +238,7 @@ function renderContractDetail(contract) {
     <td class="${valueClass(row.basisChangePct)}">${fmtPercent(row.basisChangePct, 2, true)}</td>
     <td>${fmtPercent(row.annualizedRate, 2, true)}</td><td>${fmtPercent(row.adjustedAnnualizedRate, 2, true)}</td></tr>`).join("")}</tbody></table></div>`;
   section.hidden = false;
+  bindChartPointInteractions(section);
   byId("close-contract-detail").addEventListener("click", () => { section.hidden = true; });
   section.scrollIntoView({ behavior: "smooth", block: "start" });
 }
@@ -320,8 +337,9 @@ function showChartTooltip(point, event = null) {
   const tooltip = wrap ? wrap.querySelector(".chart-tooltip") : null;
   if (!wrap || !tooltip) return;
   hideChartTooltips(tooltip);
+  const metricLabel = point.dataset.label || METRIC_LABELS[state.metric];
   tooltip.textContent = `${point.dataset.date} · ${point.dataset.term} · `
-    + `${METRIC_LABELS[state.metric]} ${point.dataset.value}`;
+    + `${metricLabel} ${point.dataset.value}`;
   tooltip.hidden = false;
 
   const wrapRect = wrap.getBoundingClientRect();
@@ -336,6 +354,20 @@ function showChartTooltip(point, event = null) {
   tooltip.style.top = `${Math.max(8, preferredTop)}px`;
 }
 
+function bindChartPointInteractions(container = document) {
+  container.querySelectorAll(".chart-point-hit").forEach((point) => {
+    if (point.dataset.interactionBound === "1") return;
+    point.dataset.interactionBound = "1";
+    point.addEventListener("pointerenter", (event) => showChartTooltip(point, event));
+    point.addEventListener("pointermove", (event) => showChartTooltip(point, event));
+    point.addEventListener("focus", () => showChartTooltip(point));
+    point.addEventListener("click", (event) => {
+      event.stopPropagation();
+      showChartTooltip(point, event);
+    });
+  });
+}
+
 function bindChartInteractions() {
   document.querySelectorAll("[data-legend-term]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -346,15 +378,7 @@ function bindChartInteractions() {
       renderCharts();
     });
   });
-  document.querySelectorAll(".chart-point-hit").forEach((point) => {
-    point.addEventListener("pointerenter", (event) => showChartTooltip(point, event));
-    point.addEventListener("pointermove", (event) => showChartTooltip(point, event));
-    point.addEventListener("focus", () => showChartTooltip(point));
-    point.addEventListener("click", (event) => {
-      event.stopPropagation();
-      showChartTooltip(point, event);
-    });
-  });
+  bindChartPointInteractions(document);
 }
 
 function renderCharts() {
