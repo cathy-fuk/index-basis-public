@@ -136,6 +136,9 @@ td small { display: block; margin-top: 2px; color: #9aa2b1; }
 .chart-wrap svg { display: block; width: 100%; height: auto; overflow: visible; }
 .chart-point-dot { pointer-events: none; }
 .chart-point-hit { fill: transparent; stroke: transparent; cursor: crosshair; touch-action: manipulation; }
+.chart-point-hit.interactive-dot { stroke: transparent; stroke-width: 10; paint-order: stroke; }
+.chart-point-hit.interactive-dot:hover,
+.chart-point-hit.interactive-dot:focus { stroke: rgba(255,255,255,.72); stroke-width: 3; outline: none; }
 .chart-point-group:hover .chart-point-dot,
 .chart-point-group:focus-within .chart-point-dot { stroke: white; stroke-width: 2.5; }
 .chart-tooltip {

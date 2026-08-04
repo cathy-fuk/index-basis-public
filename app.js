@@ -33,6 +33,8 @@ const fmt = (value, digits = 2, sign = false) => {
 };
 const fmtPercent = (value, digits = 2, sign = false) =>
   value === null || value === undefined ? "—" : `${fmt(value, digits, sign)}%`;
+const fmtPercentagePoints = (value, digits = 2, sign = false) =>
+  value === null || value === undefined ? "—" : `${fmt(value, digits, sign)} 个百分点`;
 const valueClass = (value) => Number(value) >= 0 ? "positive" : "negative";
 
 function setNotice(message, isError = false) {
@@ -159,7 +161,7 @@ function renderTable(rows) {
     <td class="${valueClass(row.priceChange)}">${fmt(row.priceChange, 2, true)}</td>
     <td class="${valueClass(row.priceChangePct)}">${fmtPercent(row.priceChangePct, 2, true)}</td>
     <td class="${valueClass(row.basis)}">${fmt(row.basis, 2, true)}</td>
-    <td class="${valueClass(row.premiumDiscountChangePct)}">${fmtPercent(row.premiumDiscountChangePct, 2, true)}</td>
+    <td class="${valueClass(row.premiumDiscountChangePct)}">${fmtPercentagePoints(row.premiumDiscountChangePct, 2, true)}</td>
     <td>${fmtPercent(row.annualizedRate, 2, true)}</td>
     <td class="adjusted">${fmtPercent(row.adjustedAnnualizedRate, 2, true)}</td>
     <td>${fmt(row.periodDividend, 4)}</td>
@@ -246,6 +248,25 @@ function filteredRows() {
   );
 }
 
+function sampleChartPoints(points, maxPoints = 180) {
+  if (points.length <= maxPoints) return points;
+  const required = new Set([0, points.length - 1]);
+  points.forEach((row, index) => {
+    if (index > 0 && row.contract !== points[index - 1].contract) {
+      required.add(index - 1);
+      required.add(index);
+    }
+  });
+  const remaining = Math.max(maxPoints - required.size, 0);
+  if (remaining > 0) {
+    const step = (points.length - 1) / Math.max(remaining - 1, 1);
+    for (let index = 0; index < remaining; index += 1) {
+      required.add(Math.round(index * step));
+    }
+  }
+  return [...required].sort((a, b) => a - b).map((index) => points[index]);
+}
+
 function chartSvg(rows, prefix) {
   const width = 720;
   const height = 300;
@@ -275,13 +296,14 @@ function chartSvg(rows, prefix) {
   if (!all.length) return '<div class="empty-chart">该区间暂无可绘制数据</div>';
 
   const dates = [...new Set(all.map((row) => row.date))].sort();
+  const dateIndex = new Map(dates.map((date, index) => [date, index]));
   const values = all.map((row) => Number(row[state.metric]));
   let min = isCumulative ? Math.min(...values, 1) : Math.min(...values, 0);
   let max = isCumulative ? Math.max(...values, 1) : Math.max(...values, 0);
   const spread = Math.max(max - min, isCumulative ? .01 : 1);
   min -= spread * .12;
   max += spread * .12;
-  const x = (date) => pad.left + (dates.indexOf(date) / Math.max(dates.length - 1, 1))
+  const x = (date) => pad.left + ((dateIndex.get(date) || 0) / Math.max(dates.length - 1, 1))
     * (width - pad.left - pad.right);
   const y = (value) => pad.top + ((max - value) / (max - min))
     * (height - pad.top - pad.bottom);
@@ -313,22 +335,19 @@ function chartSvg(rows, prefix) {
       return `<polyline points="${coordinates}" fill="none" stroke="${color}" stroke-width="2.4"
         stroke-linejoin="round" stroke-linecap="round"></polyline>`;
     }).join("");
-    const dots = points.map((row) => {
+    const dots = sampleChartPoints(points).map((row) => {
       const pointValue = isCumulative
         ? fmt(row[state.metric], isPremiumCumulative ? 6 : 4, false)
         : fmtPercent(row[state.metric], 2, true);
       const rateValue = isPremiumCumulative
         ? fmtPercent(row.premiumDiscountRatePct, 4, true) : "";
       const pointLabel = `${row.date} ${term} ${METRIC_LABELS[state.metric]} ${pointValue}`;
-      return `<g class="chart-point-group">
-        <circle class="chart-point-dot" cx="${x(row.date)}" cy="${y(Number(row[state.metric]))}"
-          r="${dates.length === 1 ? 4 : 2.3}" fill="${color}"></circle>
-        <circle class="chart-point-hit" cx="${x(row.date)}" cy="${y(Number(row[state.metric]))}"
-          r="11" tabindex="0" role="button" aria-label="${escapeHtml(pointLabel)}"
+      return `<circle class="chart-point-hit interactive-dot" cx="${x(row.date)}" cy="${y(Number(row[state.metric]))}"
+          r="${dates.length === 1 ? 4.5 : 3.2}" tabindex="0" role="button"
+          style="fill:${color}" aria-label="${escapeHtml(pointLabel)}"
           data-date="${escapeHtml(row.date)}" data-term="${escapeHtml(term)}"
           data-contract="${escapeHtml(row.contract || "")}" data-rate="${escapeHtml(rateValue)}"
-          data-value="${escapeHtml(pointValue)}"></circle>
-      </g>`;
+          data-value="${escapeHtml(pointValue)}"></circle>`;
     }).join("");
     return `${paths}${dots}`;
   }).join("");
@@ -406,7 +425,7 @@ function renderCharts() {
   byId("trend-subtitle").textContent = isIndexCumulative
     ? "每个指数的首个 Wind 交易日为 1，后续按指数日涨跌幅逐日连乘。"
     : isPremiumCumulative
-      ? "仅展示 IC、IM；各具体合约独立以 1 为基准。换合约时断线重置，跨零时也重置为 1。"
+      ? "仅展示 IC、IM；各具体合约独立以 1 为基准，逐日累乘（1＋升贴水率变动百分点÷100）。换合约时断线重置。"
       : "贴水显示在零轴下方；区间、指数与期限均可调整。";
   const rows = filteredRows();
   const selectedPrefixes = PREFIXES.filter((prefix) => state.prefixes.has(prefix)
@@ -445,14 +464,16 @@ function renderAll() {
   const rows = latestRows();
   renderCards(rows);
   renderTable(rows);
-  renderCharts();
   byId("updated-at").textContent = state.payload.updatedAt
     ? `更新时间：${new Date(state.payload.updatedAt).toLocaleString("zh-CN")}`
     : "尚未同步";
+  byId("chart-grid").innerHTML = '<div class="empty-chart">正在绘制历史图表…</div>';
+  requestAnimationFrame(() => renderCharts());
 }
 
 async function loadData() {
   try {
+    setNotice("正在读取历史数据…");
     const response = await fetch(`./data/data.json?t=${Date.now()}`, { cache: "no-store" });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const payload = await response.json();
@@ -461,7 +482,11 @@ async function loadData() {
     resetDateRangeForMetric();
     byId("status-dot").className = payload.rows.length ? "status-dot live" : "status-dot";
     byId("status-text").textContent = payload.rows.length ? "数据已同步" : "等待首次发布";
-    if (!payload.rows.length) setNotice("公共 HTML 已就绪，请先在 Windows 运行“手动测试公网更新_windows.bat”。");
+    if (!payload.rows.length) {
+      setNotice("公共 HTML 已就绪，请先在 Windows 运行“手动测试公网更新_windows.bat”。");
+    } else {
+      setNotice("");
+    }
     renderAll();
   } catch (error) {
     byId("status-dot").className = "status-dot error";
