@@ -8,6 +8,7 @@ const METRIC_LABELS = {
   annualizedRate: "年化升贴水率",
   adjustedAnnualizedRate: "年化升贴水率（剔除期内分红）",
   spotCumulativeValue: "指数累计值",
+  termPremiumDiscountChangeCumulativeValue: "升贴水率变动累计值",
 };
 const PREFIX_COLORS = { IH: "#2563eb", IF: "#0891b2", IC: "#7c3aed", IM: "#ea580c" };
 const state = {
@@ -158,7 +159,7 @@ function renderTable(rows) {
     <td class="${valueClass(row.priceChange)}">${fmt(row.priceChange, 2, true)}</td>
     <td class="${valueClass(row.priceChangePct)}">${fmtPercent(row.priceChangePct, 2, true)}</td>
     <td class="${valueClass(row.basis)}">${fmt(row.basis, 2, true)}</td>
-    <td class="${valueClass(row.basisChangePct)}">${fmtPercent(row.basisChangePct, 2, true)}</td>
+    <td class="${valueClass(row.premiumDiscountChangePct)}">${fmtPercent(row.premiumDiscountChangePct, 2, true)}</td>
     <td>${fmtPercent(row.annualizedRate, 2, true)}</td>
     <td class="adjusted">${fmtPercent(row.adjustedAnnualizedRate, 2, true)}</td>
     <td>${fmt(row.periodDividend, 4)}</td>
@@ -171,16 +172,17 @@ function renderTable(rows) {
 }
 
 function contractDetailChart(rows) {
-  const usable = rows.filter((row) => row.priceChangePct !== null && row.priceChangePct !== undefined);
-  if (!usable.length) return '<div class="empty-chart">该合约暂无可绘制的 Wind 日涨跌幅</div>';
+  const usable = rows.filter((row) => row.premiumDiscountChangeCumulativeValue !== null
+    && row.premiumDiscountChangeCumulativeValue !== undefined);
+  if (!usable.length) return '<div class="empty-chart">该合约暂无可绘制的升贴水率变动累计值</div>';
   const width = 720;
   const height = 220;
   const pad = { left: 54, right: 20, top: 18, bottom: 36 };
   const dates = usable.map((row) => row.date);
-  const values = usable.map((row) => Number(row.priceChangePct));
-  let min = Math.min(...values, 0);
-  let max = Math.max(...values, 0);
-  const spread = Math.max(max - min, .5);
+  const values = usable.map((row) => Number(row.premiumDiscountChangeCumulativeValue));
+  let min = Math.min(...values, 1);
+  let max = Math.max(...values, 1);
+  const spread = Math.max(max - min, .01);
   min -= spread * .14;
   max += spread * .14;
   const x = (index) => pad.left + (index / Math.max(dates.length - 1, 1)) * (width - pad.left - pad.right);
@@ -188,27 +190,27 @@ function contractDetailChart(rows) {
   const ticks = Array.from({ length: 5 }, (_, index) => max - ((max - min) * index) / 4);
   const grid = ticks.map((tick) => `<g>
     <line x1="${pad.left}" x2="${width - pad.right}" y1="${y(tick)}" y2="${y(tick)}" class="grid-line"></line>
-    <text x="${pad.left - 10}" y="${y(tick) + 4}" text-anchor="end" class="axis-label">${fmt(tick, 1)}%</text>
+    <text x="${pad.left - 10}" y="${y(tick) + 4}" text-anchor="end" class="axis-label">${fmt(tick, 4)}</text>
   </g>`).join("");
-  const coordinates = usable.map((row, index) => `${x(index)},${y(Number(row.priceChangePct))}`).join(" ");
+  const coordinates = usable.map((row, index) => `${x(index)},${y(Number(row.premiumDiscountChangeCumulativeValue))}`).join(" ");
   const dots = usable.map((row, index) => {
-    const pointValue = fmtPercent(row.priceChangePct, 2, true);
-    const pointLabel = `${row.date} IC2612 合约涨跌幅 ${pointValue}`;
+    const pointValue = fmt(row.premiumDiscountChangeCumulativeValue, 6, false);
+    const pointLabel = `${row.date} IC2612 升贴水率变动累计值 ${pointValue}`;
     return `<g class="chart-point-group">
-      <circle class="chart-point-dot" cx="${x(index)}" cy="${y(Number(row.priceChangePct))}"
+      <circle class="chart-point-dot" cx="${x(index)}" cy="${y(Number(row.premiumDiscountChangeCumulativeValue))}"
         r="${dates.length === 1 ? 4 : 2.8}" fill="#7c3aed"></circle>
-      <circle class="chart-point-hit" cx="${x(index)}" cy="${y(Number(row.priceChangePct))}"
+      <circle class="chart-point-hit" cx="${x(index)}" cy="${y(Number(row.premiumDiscountChangeCumulativeValue))}"
         r="11" tabindex="0" role="button" aria-label="${escapeHtml(pointLabel)}"
         data-date="${escapeHtml(row.date)}" data-term="IC2612"
-        data-label="合约涨跌幅" data-value="${escapeHtml(pointValue)}"></circle>
+        data-label="升贴水率变动累计值" data-value="${escapeHtml(pointValue)}"></circle>
     </g>`;
   }).join("");
-  const zero = `<line x1="${pad.left}" x2="${width - pad.right}" y1="${y(0)}" y2="${y(0)}" class="zero-line"></line>`;
+  const baseline = `<line x1="${pad.left}" x2="${width - pad.right}" y1="${y(1)}" y2="${y(1)}" class="zero-line"></line>`;
   const labels = [0, Math.floor((dates.length - 1) / 2), dates.length - 1]
     .filter((value, index, array) => array.indexOf(value) === index)
     .map((index) => `<text x="${x(index)}" y="${height - 9}" text-anchor="middle" class="axis-label">${escapeHtml(dates[index])}</text>`).join("");
   return `<div class="chart-wrap detail-chart"><svg viewBox="0 0 ${width} ${height}" role="img"
-    aria-label="IC2612 合约历史涨跌幅">${grid}${zero}<polyline points="${coordinates}" fill="none"
+    aria-label="IC2612 升贴水率变动累计值">${grid}${baseline}<polyline points="${coordinates}" fill="none"
     stroke="#7c3aed" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"></polyline>${dots}${labels}</svg>
     <div class="chart-tooltip" role="status" hidden></div></div>`;
 }
@@ -222,21 +224,11 @@ function renderContractDetail(contract) {
     section.innerHTML = '<div class="empty-chart">IC2612 尚无历史数据</div>';
     return;
   }
-  const visibleRows = rows.slice(-120);
   section.innerHTML = `<div class="detail-head"><div><span class="section-kicker">CONTRACT DRILL-DOWN</span>
     <h3>${escapeHtml(contract)} 合约历史详情</h3>
-    <p>${rows.length} 个日频观测；可悬停或点击曲线查看 Wind 合约涨跌幅精确值，表格最多展示最近 120 条。</p></div>
+    <p>${rows.length} 个日频观测；可悬停或点击曲线查看升贴水率变动累计值。具体日频数据保留在 Windows 本地数据库中。</p></div>
     <button id="close-contract-detail" type="button" class="detail-close">收起 ×</button></div>
-    ${contractDetailChart(rows)}
-    <div class="table-scroll"><table class="detail-table"><thead><tr><th>日期</th><th>合约收盘</th>
-    <th>合约涨跌幅</th><th>指数收盘</th><th>指数涨跌幅</th><th>基差</th>
-    <th>基差涨跌幅</th><th>年化升贴水率</th><th>年化升贴水率（剔除分红）</th></tr></thead>
-    <tbody>${visibleRows.map((row) => `<tr><td>${escapeHtml(row.date)}</td><td>${fmt(row.futuresPrice)}</td>
-    <td class="${valueClass(row.priceChangePct)}">${fmtPercent(row.priceChangePct, 2, true)}</td>
-    <td>${fmt(row.spotPrice)}</td><td class="${valueClass(row.spotChangePct)}">${fmtPercent(row.spotChangePct, 2, true)}</td>
-    <td class="${valueClass(row.basis)}">${fmt(row.basis, 2, true)}</td>
-    <td class="${valueClass(row.basisChangePct)}">${fmtPercent(row.basisChangePct, 2, true)}</td>
-    <td>${fmtPercent(row.annualizedRate, 2, true)}</td><td>${fmtPercent(row.adjustedAnnualizedRate, 2, true)}</td></tr>`).join("")}</tbody></table></div>`;
+    ${contractDetailChart(rows)}`;
   section.hidden = false;
   bindChartPointInteractions(section);
   byId("close-contract-detail").addEventListener("click", () => { section.hidden = true; });
@@ -256,9 +248,11 @@ function chartSvg(rows, prefix) {
   const width = 720;
   const height = 300;
   const pad = { left: 54, right: 20, top: 20, bottom: 38 };
-  const isCumulative = state.metric === "spotCumulativeValue";
+  const isIndexCumulative = state.metric === "spotCumulativeValue";
+  const isPremiumCumulative = state.metric === "termPremiumDiscountChangeCumulativeValue";
+  const isCumulative = isIndexCumulative || isPremiumCumulative;
   const localTerms = state.chartTerms[prefix];
-  const series = isCumulative
+  const series = isIndexCumulative
     ? [{
       term: INDEX_NAMES[prefix],
       color: PREFIX_COLORS[prefix],
@@ -280,8 +274,8 @@ function chartSvg(rows, prefix) {
 
   const dates = [...new Set(all.map((row) => row.date))].sort();
   const values = all.map((row) => Number(row[state.metric]));
-  let min = isCumulative ? Math.min(...values) : Math.min(...values, 0);
-  let max = isCumulative ? Math.max(...values) : Math.max(...values, 0);
+  let min = isCumulative ? Math.min(...values, 1) : Math.min(...values, 0);
+  let max = isCumulative ? Math.max(...values, 1) : Math.max(...values, 0);
   const spread = Math.max(max - min, isCumulative ? .01 : 1);
   min -= spread * .12;
   max += spread * .12;
@@ -297,13 +291,15 @@ function chartSvg(rows, prefix) {
     <line x1="${pad.left}" x2="${width - pad.right}" y1="${y(tick)}" y2="${y(tick)}" class="grid-line"></line>
     <text x="${pad.left - 10}" y="${y(tick) + 4}" text-anchor="end" class="axis-label">${isCumulative ? fmt(tick, 4) : fmt(tick, 1) + "%"}</text>
   </g>`).join("");
-  const zero = !isCumulative && min < 0 && max > 0
-    ? `<line x1="${pad.left}" x2="${width - pad.right}" y1="${y(0)}" y2="${y(0)}" class="zero-line"></line>` : "";
+  const referenceLine = isCumulative
+    ? `<line x1="${pad.left}" x2="${width - pad.right}" y1="${y(1)}" y2="${y(1)}" class="zero-line"></line>`
+    : min < 0 && max > 0
+      ? `<line x1="${pad.left}" x2="${width - pad.right}" y1="${y(0)}" y2="${y(0)}" class="zero-line"></line>` : "";
   const lines = series.map(({ term, color, points }) => {
     const coordinates = points.map((row) => `${x(row.date)},${y(Number(row[state.metric]))}`).join(" ");
     const dots = points.map((row) => {
       const pointValue = isCumulative
-        ? fmt(row[state.metric], 4, false)
+        ? fmt(row[state.metric], isPremiumCumulative ? 6 : 4, false)
         : fmtPercent(row[state.metric], 2, true);
       const pointLabel = `${row.date} ${term} ${METRIC_LABELS[state.metric]} ${pointValue}`;
       return `<g class="chart-point-group">
@@ -322,7 +318,7 @@ function chartSvg(rows, prefix) {
     `<text x="${x(date)}" y="${height - 10}" text-anchor="middle" class="axis-label">${escapeHtml(date)}</text>`
   ).join("");
   return `<div class="chart-wrap"><svg viewBox="0 0 ${width} ${height}" role="img"
-    aria-label="${INDEX_NAMES[prefix]}${METRIC_LABELS[state.metric]}走势">${grid}${zero}${lines}${dateLabels}</svg>
+    aria-label="${INDEX_NAMES[prefix]}${METRIC_LABELS[state.metric]}走势">${grid}${referenceLine}${lines}${dateLabels}</svg>
     <div class="chart-tooltip" role="status" hidden></div></div>`;
 }
 
@@ -382,24 +378,30 @@ function bindChartInteractions() {
 }
 
 function renderCharts() {
-  const isCumulativeMetric = state.metric === "spotCumulativeValue";
-  byId("trend-title").textContent = isCumulativeMetric ? "指数累计值走势" : "年化升贴水率走势";
-  byId("trend-subtitle").textContent = isCumulativeMetric
+  const isIndexCumulative = state.metric === "spotCumulativeValue";
+  const isPremiumCumulative = state.metric === "termPremiumDiscountChangeCumulativeValue";
+  byId("trend-title").textContent = isIndexCumulative
+    ? "指数累计值走势"
+    : isPremiumCumulative ? "IC、IM 升贴水率变动累计值" : "年化升贴水率走势";
+  byId("trend-subtitle").textContent = isIndexCumulative
     ? "每个指数的首个 Wind 交易日为 1，后续按指数日涨跌幅逐日连乘。"
-    : "贴水显示在零轴下方；区间、指数与期限均可调整。";
+    : isPremiumCumulative
+      ? "仅展示 IC、IM；按期限展示非年化升贴水率相对变动的累乘值。跨零时重置为 1。"
+      : "贴水显示在零轴下方；区间、指数与期限均可调整。";
   const rows = filteredRows();
-  const selectedPrefixes = PREFIXES.filter((prefix) => state.prefixes.has(prefix));
+  const selectedPrefixes = PREFIXES.filter((prefix) => state.prefixes.has(prefix)
+    && (!isPremiumCumulative || ["IC", "IM"].includes(prefix)));
   if (!selectedPrefixes.length) {
     byId("chart-grid").innerHTML = '<div class="empty-chart">请至少选择一个指数</div>';
     return;
   }
   byId("chart-grid").innerHTML = selectedPrefixes.map((prefix) => {
     const localTerms = state.chartTerms[prefix];
-    const isCumulative = state.metric === "spotCumulativeValue";
+    const isCumulative = isIndexCumulative || isPremiumCumulative;
     const count = rows.filter((row) => row.prefix === prefix
       && localTerms.has(row.term)
       && row[state.metric] !== null && row[state.metric] !== undefined).length;
-    const legend = isCumulative ? "" : TERMS.map((term) => {
+    const legend = isIndexCumulative ? "" : TERMS.map((term) => {
       const globallyEnabled = state.terms.has(term);
       const active = globallyEnabled && localTerms.has(term);
       return `<button type="button" class="legend-item ${active ? "active" : ""}"
@@ -410,7 +412,7 @@ function renderCharts() {
     }).join("");
     return `<article class="chart-card">
       <div class="chart-title"><div><strong>${prefix} · ${INDEX_NAMES[prefix]}</strong>
-        <small>${isCumulative ? new Set(rows.filter((row) => row.prefix === prefix && row.spotCumulativeValue != null).map((row) => row.date)).size : count} 个有效交易日${count > 0 && count <= 4 ? "（数据较少时显示为点）" : ""}</small></div>
+        <small>${isCumulative ? new Set(rows.filter((row) => row.prefix === prefix && row[state.metric] != null).map((row) => row.date)).size : count} 个有效交易日${count > 0 && count <= 4 ? "（数据较少时显示为点）" : ""}</small></div>
         <div class="legend">${legend}</div>
       </div>${chartSvg(rows, prefix)}
     </article>`;
