@@ -195,6 +195,7 @@ function contractDetailChart(rows) {
   const coordinates = usable.map((row, index) => `${x(index)},${y(Number(row.premiumDiscountChangeCumulativeValue))}`).join(" ");
   const dots = usable.map((row, index) => {
     const pointValue = fmt(row.premiumDiscountChangeCumulativeValue, 6, false);
+    const rateValue = fmtPercent(row.premiumDiscountRatePct, 4, true);
     const pointLabel = `${row.date} IC2612 升贴水率变动累计值 ${pointValue}`;
     return `<g class="chart-point-group">
       <circle class="chart-point-dot" cx="${x(index)}" cy="${y(Number(row.premiumDiscountChangeCumulativeValue))}"
@@ -202,6 +203,7 @@ function contractDetailChart(rows) {
       <circle class="chart-point-hit" cx="${x(index)}" cy="${y(Number(row.premiumDiscountChangeCumulativeValue))}"
         r="11" tabindex="0" role="button" aria-label="${escapeHtml(pointLabel)}"
         data-date="${escapeHtml(row.date)}" data-term="IC2612"
+        data-contract="IC2612" data-rate="${escapeHtml(rateValue)}"
         data-label="升贴水率变动累计值" data-value="${escapeHtml(pointValue)}"></circle>
     </g>`;
   }).join("");
@@ -296,11 +298,27 @@ function chartSvg(rows, prefix) {
     : min < 0 && max > 0
       ? `<line x1="${pad.left}" x2="${width - pad.right}" y1="${y(0)}" y2="${y(0)}" class="zero-line"></line>` : "";
   const lines = series.map(({ term, color, points }) => {
-    const coordinates = points.map((row) => `${x(row.date)},${y(Number(row[state.metric]))}`).join(" ");
+    // “当月”等期限标签会随换月对应不同合约。累计值必须按
+    // 具体合约分段画线，不能把旧合约末点与新合约首点直接相连。
+    const segments = isPremiumCumulative
+      ? [...points.reduce((groups, row) => {
+        const contract = row.contract || "unknown";
+        if (!groups.has(contract)) groups.set(contract, []);
+        groups.get(contract).push(row);
+        return groups;
+      }, new Map()).values()]
+      : [points];
+    const paths = segments.map((segment) => {
+      const coordinates = segment.map((row) => `${x(row.date)},${y(Number(row[state.metric]))}`).join(" ");
+      return `<polyline points="${coordinates}" fill="none" stroke="${color}" stroke-width="2.4"
+        stroke-linejoin="round" stroke-linecap="round"></polyline>`;
+    }).join("");
     const dots = points.map((row) => {
       const pointValue = isCumulative
         ? fmt(row[state.metric], isPremiumCumulative ? 6 : 4, false)
         : fmtPercent(row[state.metric], 2, true);
+      const rateValue = isPremiumCumulative
+        ? fmtPercent(row.premiumDiscountRatePct, 4, true) : "";
       const pointLabel = `${row.date} ${term} ${METRIC_LABELS[state.metric]} ${pointValue}`;
       return `<g class="chart-point-group">
         <circle class="chart-point-dot" cx="${x(row.date)}" cy="${y(Number(row[state.metric]))}"
@@ -308,11 +326,11 @@ function chartSvg(rows, prefix) {
         <circle class="chart-point-hit" cx="${x(row.date)}" cy="${y(Number(row[state.metric]))}"
           r="11" tabindex="0" role="button" aria-label="${escapeHtml(pointLabel)}"
           data-date="${escapeHtml(row.date)}" data-term="${escapeHtml(term)}"
+          data-contract="${escapeHtml(row.contract || "")}" data-rate="${escapeHtml(rateValue)}"
           data-value="${escapeHtml(pointValue)}"></circle>
       </g>`;
     }).join("");
-    return `<polyline points="${coordinates}" fill="none" stroke="${color}" stroke-width="2.4"
-      stroke-linejoin="round" stroke-linecap="round"></polyline>${dots}`;
+    return `${paths}${dots}`;
   }).join("");
   const dateLabels = dateTicks.map((date) =>
     `<text x="${x(date)}" y="${height - 10}" text-anchor="middle" class="axis-label">${escapeHtml(date)}</text>`
@@ -335,7 +353,9 @@ function showChartTooltip(point, event = null) {
   hideChartTooltips(tooltip);
   const metricLabel = point.dataset.label || METRIC_LABELS[state.metric];
   tooltip.textContent = `${point.dataset.date} · ${point.dataset.term} · `
-    + `${metricLabel} ${point.dataset.value}`;
+    + `${metricLabel} ${point.dataset.value}`
+    + (point.dataset.contract ? ` · 合约 ${point.dataset.contract}` : "")
+    + (point.dataset.rate ? ` · 非年化升贴水率 ${point.dataset.rate}` : "");
   tooltip.hidden = false;
 
   const wrapRect = wrap.getBoundingClientRect();
@@ -386,7 +406,7 @@ function renderCharts() {
   byId("trend-subtitle").textContent = isIndexCumulative
     ? "每个指数的首个 Wind 交易日为 1，后续按指数日涨跌幅逐日连乘。"
     : isPremiumCumulative
-      ? "仅展示 IC、IM；按期限展示非年化升贴水率相对变动的累乘值。跨零时重置为 1。"
+      ? "仅展示 IC、IM；各具体合约独立以 1 为基准。换合约时断线重置，跨零时也重置为 1。"
       : "贴水显示在零轴下方；区间、指数与期限均可调整。";
   const rows = filteredRows();
   const selectedPrefixes = PREFIXES.filter((prefix) => state.prefixes.has(prefix)
