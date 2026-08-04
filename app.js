@@ -33,8 +33,6 @@ const fmt = (value, digits = 2, sign = false) => {
 };
 const fmtPercent = (value, digits = 2, sign = false) =>
   value === null || value === undefined ? "—" : `${fmt(value, digits, sign)}%`;
-const fmtPercentagePoints = (value, digits = 2, sign = false) =>
-  value === null || value === undefined ? "—" : `${fmt(value, digits, sign)} 个百分点`;
 const valueClass = (value) => Number(value) >= 0 ? "positive" : "negative";
 
 function setNotice(message, isError = false) {
@@ -161,7 +159,7 @@ function renderTable(rows) {
     <td class="${valueClass(row.priceChange)}">${fmt(row.priceChange, 2, true)}</td>
     <td class="${valueClass(row.priceChangePct)}">${fmtPercent(row.priceChangePct, 2, true)}</td>
     <td class="${valueClass(row.basis)}">${fmt(row.basis, 2, true)}</td>
-    <td class="${valueClass(row.premiumDiscountChangePct)}">${fmtPercentagePoints(row.premiumDiscountChangePct, 2, true)}</td>
+    <td class="${valueClass(row.premiumDiscountChangePct)}">${fmtPercent(row.premiumDiscountChangePct, 2, true)}</td>
     <td>${fmtPercent(row.annualizedRate, 2, true)}</td>
     <td class="adjusted">${fmtPercent(row.adjustedAnnualizedRate, 2, true)}</td>
     <td>${fmt(row.periodDividend, 4)}</td>
@@ -425,7 +423,7 @@ function renderCharts() {
   byId("trend-subtitle").textContent = isIndexCumulative
     ? "每个指数的首个 Wind 交易日为 1，后续按指数日涨跌幅逐日连乘。"
     : isPremiumCumulative
-      ? "仅展示 IC、IM；各具体合约独立以 1 为基准，逐日累乘（1＋升贴水率变动百分点÷100）。换合约时断线重置。"
+      ? "仅展示 IC、IM；为避免前日升贴水率接近0时比值失真，图表使用日度百分点差计算；表格仍显示相对变动率。各合约独立以1为基准，换合约时断线重置。"
       : "贴水显示在零轴下方；区间、指数与期限均可调整。";
   const rows = filteredRows();
   const selectedPrefixes = PREFIXES.filter((prefix) => state.prefixes.has(prefix)
