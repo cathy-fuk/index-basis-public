@@ -3,7 +3,7 @@
 const PREFIXES = ["IH", "IF", "IC", "IM"];
 const TERMS = ["当月", "下月", "当季", "下季"];
 const INDEX_NAMES = { IH: "上证50", IF: "沪深300", IC: "中证500", IM: "中证1000" };
-const TERM_COLORS = { 当月: "#ff8a80", 下月: "#ff6b45", 当季: "#e34a42", 下季: "#8e5d58" };
+const TERM_COLORS = { 当月: "#2563eb", 下月: "#0f9fa8", 当季: "#f59e0b", 下季: "#8b5cf6" };
 const METRIC_LABELS = {
   annualizedRate: "年化升贴水率",
   adjustedAnnualizedRate: "年化升贴水率（剔除期内分红）",
@@ -318,21 +318,13 @@ function chartSvg(rows, prefix) {
     : min < 0 && max > 0
       ? `<line x1="${pad.left}" x2="${width - pad.right}" y1="${y(0)}" y2="${y(0)}" class="zero-line"></line>` : "";
   const lines = series.map(({ term, color, points }) => {
-    // “当月”等期限标签会随换月对应不同合约。累计值必须按
-    // 具体合约分段画线，不能把旧合约末点与新合约首点直接相连。
-    const segments = isPremiumCumulative
-      ? [...points.reduce((groups, row) => {
-        const contract = row.contract || "unknown";
-        if (!groups.has(contract)) groups.set(contract, []);
-        groups.get(contract).push(row);
-        return groups;
-      }, new Map()).values()]
-      : [points];
-    const paths = segments.map((segment) => {
-      const coordinates = segment.map((row) => `${x(row.date)},${y(Number(row[state.metric]))}`).join(" ");
-      return `<polyline points="${coordinates}" fill="none" stroke="${color}" stroke-width="2.4"
-        stroke-linejoin="round" stroke-linecap="round"></polyline>`;
-    }).join("");
+    // 每个期限桶是一条连续序列；数据层已在换合约日承接前值，
+    // 因此这里不再按具体合约拆成许多折线段。
+    const coordinates = points.map((row) =>
+      `${x(row.date)},${y(Number(row[state.metric]))}`).join(" ");
+    const path = `<polyline class="term-line" points="${coordinates}" fill="none"
+      stroke="${color}" stroke-width="2.7" stroke-linejoin="round"
+      stroke-linecap="round" vector-effect="non-scaling-stroke"></polyline>`;
     const dots = sampleChartPoints(points).map((row) => {
       const pointValue = isCumulative
         ? fmt(row[state.metric], isPremiumCumulative ? 6 : 4, false)
@@ -341,13 +333,18 @@ function chartSvg(rows, prefix) {
         ? fmtPercent(row.premiumDiscountRatePct, 4, true) : "";
       const pointLabel = `${row.date} ${term} ${METRIC_LABELS[state.metric]} ${pointValue}`;
       return `<circle class="chart-point-hit interactive-dot" cx="${x(row.date)}" cy="${y(Number(row[state.metric]))}"
-          r="${dates.length === 1 ? 4.5 : 3.2}" tabindex="0" role="button"
-          style="fill:${color}" aria-label="${escapeHtml(pointLabel)}"
+          r="${dates.length === 1 ? 7 : 6}" tabindex="0" role="button"
+          aria-label="${escapeHtml(pointLabel)}"
           data-date="${escapeHtml(row.date)}" data-term="${escapeHtml(term)}"
           data-contract="${escapeHtml(row.contract || "")}" data-rate="${escapeHtml(rateValue)}"
           data-value="${escapeHtml(pointValue)}"></circle>`;
     }).join("");
-    return `${paths}${dots}`;
+    const lastPoint = points[points.length - 1];
+    const endpoint = lastPoint
+      ? `<circle class="chart-end-dot" cx="${x(lastPoint.date)}"
+          cy="${y(Number(lastPoint[state.metric]))}" r="3.8"
+          fill="${color}" stroke="white" stroke-width="1.8"></circle>` : "";
+    return `${path}${dots}${endpoint}`;
   }).join("");
   const dateLabels = dateTicks.map((date) =>
     `<text x="${x(date)}" y="${height - 10}" text-anchor="middle" class="axis-label">${escapeHtml(date)}</text>`
@@ -423,7 +420,7 @@ function renderCharts() {
   byId("trend-subtitle").textContent = isIndexCumulative
     ? "每个指数的首个 Wind 交易日为 1，后续按指数日涨跌幅逐日连乘。"
     : isPremiumCumulative
-      ? "仅展示 IC、IM；为避免前日升贴水率接近0时比值失真，图表使用日度百分点差计算；表格仍显示相对变动率。各合约独立以1为基准，换合约时断线重置。"
+      ? "仅展示 IC、IM；四条线分别代表当月、下月、当季、下季连续期限。换合约日承接前值，不计入新旧合约水平差；图表使用日度百分点差，表格仍显示相对变动率。"
       : "贴水显示在零轴下方；区间、指数与期限均可调整。";
   const rows = filteredRows();
   const selectedPrefixes = PREFIXES.filter((prefix) => state.prefixes.has(prefix)

@@ -134,11 +134,14 @@ td small { display: block; margin-top: 2px; color: #9aa2b1; }
 .legend i { width: 14px; height: 3px; border-radius: 4px; }
 .chart-wrap { position: relative; width: 100%; margin-top: 10px; }
 .chart-wrap svg { display: block; width: 100%; height: auto; overflow: visible; }
+.term-line { opacity: .92; transition: opacity .15s ease, stroke-width .15s ease; }
+.chart-wrap:hover .term-line { opacity: .78; }
+.chart-end-dot { pointer-events: none; }
 .chart-point-dot { pointer-events: none; }
 .chart-point-hit { fill: transparent; stroke: transparent; cursor: crosshair; touch-action: manipulation; }
 .chart-point-hit.interactive-dot { stroke: transparent; stroke-width: 10; paint-order: stroke; }
 .chart-point-hit.interactive-dot:hover,
-.chart-point-hit.interactive-dot:focus { stroke: rgba(255,255,255,.72); stroke-width: 3; outline: none; }
+.chart-point-hit.interactive-dot:focus { fill: rgba(255,255,255,.78); stroke: rgba(37,99,235,.35); stroke-width: 2; outline: none; }
 .chart-point-group:hover .chart-point-dot,
 .chart-point-group:focus-within .chart-point-dot { stroke: white; stroke-width: 2.5; }
 .chart-tooltip {
@@ -148,7 +151,7 @@ td small { display: block; margin-top: 2px; color: #9aa2b1; }
   font-size: 11px; line-height: 1.45; pointer-events: none; white-space: normal;
 }
 .chart-tooltip[hidden] { display: none; }
-.grid-line { stroke: #e9edf3; stroke-width: 1; }
+.grid-line { stroke: #edf1f6; stroke-width: 1; }
 .zero-line { stroke: #8994a6; stroke-width: 1.2; }
 .axis-label { fill: #8490a3; font-size: 10px; }
 .empty-chart { display: grid; place-items: center; min-height: 260px; color: var(--muted); font-size: 12px; }
