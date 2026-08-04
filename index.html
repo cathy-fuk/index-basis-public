@@ -3,10 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <meta name="description" content="四大股指期货基差、期内分红校正与年化升贴水率历史走势">
   <meta name="color-scheme" content="light">
   <title>股指期货基差监控</title>
-  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./styles.css?v=20260804-52">
 </head>
 <body>
   <main>
@@ -68,7 +71,7 @@
         <table>
           <thead><tr>
             <th>合约</th><th>价格</th><th>合约涨跌额</th><th>合约涨跌幅</th><th>基差</th>
-            <th>基差涨跌幅</th>
+            <th>升贴水率变动</th>
             <th>年化升贴水率</th>
             <th class="adjusted">年化升贴水率<br>（剔除期内分红）</th>
             <th>期内分红</th><th>剩余天数</th><th>到期时间</th>
@@ -89,8 +92,12 @@
     <details class="formula">
       <summary>查看计算口径与数据来源</summary>
       <p>基差＝期货－现货；年化升贴水率＝基差÷现货×365÷剩余日历天数。</p>
-      <p>基差涨跌幅＝（当日基差－前一交易日基差）÷|前一交易日基差|；数据使用 Wind 日频收盘。</p>
+      <p>非年化升贴水率＝基差÷现货指数；升贴水率变动＝
+        当日非年化升贴水率－前一交易日非年化升贴水率，单位为百分点。</p>
       <p>指数累计值在每个指数的首个 Wind 交易日设为 1，此后按（1＋指数日涨跌幅）逐日连乘。</p>
+      <p>升贴水率变动累计值从 1 开始，逐日乘以
+        （1＋当日升贴水率变动百分点÷100）；每张具体合约独立以1为基准，
+        换合约时重置为1。该方法不使用接近0的升贴水率作除数。</p>
       <p>年化升贴水率（剔除期内分红）完整采用 Tinysoft 同一快照：
         （基差＋期内分红）÷现货×365÷剩余日历天数。</p>
       <p>所有表格和曲线均保留正负号，不取绝对值；负数表示贴水。</p>
@@ -106,6 +113,7 @@
         <option value="annualizedRate">年化升贴水率</option>
         <option value="adjustedAnnualizedRate">年化升贴水率（剔除期内分红）</option>
         <option value="spotCumulativeValue">指数累计值</option>
+        <option value="termPremiumDiscountChangeCumulativeValue">升贴水率变动累计值（仅IC/IM）</option>
       </select>
     </div>
     <section id="chart-grid" class="chart-grid"></section>
@@ -115,6 +123,6 @@
       <span>基差口径：期货－现货</span>
     </footer>
   </main>
-  <script src="./app.js" defer></script>
+  <script src="./app.js?v=20260804-52" defer></script>
 </body>
 </html>
