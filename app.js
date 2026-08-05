@@ -3,7 +3,7 @@
 const PREFIXES = ["IH", "IF", "IC", "IM"];
 const TERMS = ["当月", "下月", "当季", "下季"];
 const INDEX_NAMES = { IH: "上证50", IF: "沪深300", IC: "中证500", IM: "中证1000" };
-const TERM_COLORS = { 当月: "#ff8a80", 下月: "#ff6b45", 当季: "#e34a42", 下季: "#8e5d58" };
+const TERM_COLORS = { 当月: "#2563eb", 下月: "#0f9fa8", 当季: "#f59e0b", 下季: "#8b5cf6" };
 const METRIC_LABELS = {
   annualizedRate: "年化升贴水率",
   adjustedAnnualizedRate: "年化升贴水率（剔除期内分红）",
@@ -11,6 +11,17 @@ const METRIC_LABELS = {
   termPremiumDiscountChangeCumulativeValue: "升贴水率变动累计值",
 };
 const PREFIX_COLORS = { IH: "#2563eb", IF: "#0891b2", IC: "#7c3aed", IM: "#ea580c" };
+const DETAIL_METRICS = {
+  premiumDiscountChangeCumulativeValue: { label: "升贴水率变动累计值", digits: 6, suffix: "", baseline: 1 },
+  futuresPrice: { label: "合约价格", digits: 2, suffix: "", baseline: null },
+  priceChangePct: { label: "合约涨跌幅", digits: 2, suffix: "%", baseline: 0 },
+  basis: { label: "基差", digits: 2, suffix: "", baseline: 0 },
+  premiumDiscountRatePct: { label: "非年化升贴水率", digits: 4, suffix: "%", baseline: 0 },
+  premiumDiscountChangePct: { label: "升贴水率变动", digits: 2, suffix: "%", baseline: 0 },
+  annualizedRate: { label: "年化升贴水率", digits: 2, suffix: "%", baseline: 0 },
+  adjustedAnnualizedRate: { label: "年化升贴水率（剔除期内分红）", digits: 2, suffix: "%", baseline: 0 },
+  periodDividend: { label: "期内分红", digits: 4, suffix: "", baseline: 0 },
+};
 const state = {
   payload: { schemaVersion: 1, updatedAt: "", sourceDate: "", status: "awaiting-first-upload", rows: [] },
   prefixes: new Set(PREFIXES),
@@ -19,6 +30,8 @@ const state = {
   metric: "annualizedRate",
   startDate: "",
   endDate: "",
+  detailContract: null,
+  detailMetric: "premiumDiscountChangeCumulativeValue",
 };
 
 const byId = (id) => document.getElementById(id);
@@ -50,6 +63,9 @@ function validatePayload(payload) {
     if (!PREFIXES.includes(row.prefix) || !TERMS.includes(row.term)) {
       throw new Error(`发现未知指数或期限：${row.prefix}/${row.term}`);
     }
+    if (!["Wind 日频", "Tinysoft 快照"].includes(row.dataSource)) {
+      throw new Error(`发现未知数据来源：${row.dataSource || "空值"}`);
+    }
     if (row.spotPrice !== null && row.futuresPrice !== null && row.basis !== null) {
       const expected = Number(row.futuresPrice) - Number(row.spotPrice);
       if (Math.abs(Number(row.basis) - expected) > 0.051) {
@@ -69,7 +85,8 @@ function applyTheme(theme) {
 
 function validMetricDates() {
   return state.payload.rows
-    .filter((row) => row[state.metric] !== null && row[state.metric] !== undefined)
+    .filter((row) => row[state.metric] !== null && row[state.metric] !== undefined
+      && (state.metric === "adjustedAnnualizedRate" || row.dataSource === "Wind 日频"))
     .map((row) => row.date)
     .sort();
 }
@@ -98,31 +115,31 @@ function renderChips() {
     button.addEventListener("click", () => {
       const value = button.dataset.prefix;
       state.prefixes.has(value) ? state.prefixes.delete(value) : state.prefixes.add(value);
-      renderChips();
-      renderCharts();
+      renderAll();
     });
   });
   document.querySelectorAll("#term-chips [data-term]").forEach((button) => {
     button.addEventListener("click", () => {
       const value = button.dataset.term;
       state.terms.has(value) ? state.terms.delete(value) : state.terms.add(value);
-      renderChips();
-      renderCharts();
+      renderAll();
     });
   });
 }
 
 function latestRows() {
-  const dates = state.payload.rows.map((row) => row.date).sort();
+  const eligible = filteredRows().filter((row) => row.dataSource === "Wind 日频");
+  const dates = eligible.map((row) => row.date).sort();
   const latestDate = dates[dates.length - 1] || "";
-  return state.payload.rows
+  return eligible
     .filter((row) => row.date === latestDate)
     .sort((a, b) => PREFIXES.indexOf(a.prefix) - PREFIXES.indexOf(b.prefix)
       || Number(a.remainingDays) - Number(b.remainingDays));
 }
 
 function renderCards(rows) {
-  byId("card-grid").innerHTML = PREFIXES.map((prefix) => {
+  const visiblePrefixes = PREFIXES.filter((prefix) => state.prefixes.has(prefix));
+  byId("card-grid").innerHTML = visiblePrefixes.map((prefix) => {
     const nearest = rows.filter((row) => row.prefix === prefix)
       .sort((a, b) => Number(a.remainingDays) - Number(b.remainingDays))[0];
     const spotMoveAvailable = nearest
@@ -171,17 +188,47 @@ function renderTable(rows) {
   });
 }
 
-function contractDetailChart(rows) {
-  const usable = rows.filter((row) => row.premiumDiscountChangeCumulativeValue !== null
-    && row.premiumDiscountChangeCumulativeValue !== undefined);
-  if (!usable.length) return '<div class="empty-chart">该合约暂无可绘制的升贴水率变动累计值</div>';
+function detailValue(row, key) {
+  const config = DETAIL_METRICS[key];
+  if (!config || row[key] === null || row[key] === undefined) return "—";
+  return `${fmt(row[key], config.digits, !["futuresPrice", "periodDividend", "premiumDiscountChangeCumulativeValue"].includes(key))}${config.suffix}`;
+}
+
+function contractDetailTable(rows) {
+  const body = [...rows].sort((a, b) => b.date.localeCompare(a.date)).map((row) => `<tr>
+    <td>${escapeHtml(row.date)}</td>
+    <td>${fmt(row.futuresPrice, 2)}</td>
+    <td class="${valueClass(row.priceChangePct)}">${fmtPercent(row.priceChangePct, 2, true)}</td>
+    <td class="${valueClass(row.basis)}">${fmt(row.basis, 2, true)}</td>
+    <td>${fmtPercent(row.premiumDiscountRatePct, 4, true)}</td>
+    <td class="${valueClass(row.premiumDiscountChangePct)}">${fmtPercent(row.premiumDiscountChangePct, 2, true)}</td>
+    <td>${fmtPercent(row.annualizedRate, 2, true)}</td>
+    <td class="adjusted">${fmtPercent(row.adjustedAnnualizedRate, 2, true)}</td>
+    <td>${fmt(row.periodDividend, 4)}</td>
+    <td>${escapeHtml(row.remainingDays)}</td>
+    <td>${fmt(row.premiumDiscountChangeCumulativeValue, 6)}</td>
+  </tr>`).join("");
+  return `<details class="detail-data"><summary>查看日频明细数据（${rows.length} 行）</summary>
+    <div class="table-scroll"><table class="detail-table"><thead><tr>
+      <th>日期</th><th>合约价格</th><th>合约涨跌幅</th><th>基差</th>
+      <th>非年化升贴水率</th><th>升贴水率变动</th><th>年化升贴水率</th>
+      <th class="adjusted">剔除分红年化率</th><th>期内分红</th><th>剩余天数</th><th>累计值</th>
+    </tr></thead><tbody>${body}</tbody></table></div></details>`;
+}
+
+function contractDetailChart(rows, metricKey) {
+  const config = DETAIL_METRICS[metricKey];
+  const usable = rows.filter((row) => row[metricKey] !== null
+    && row[metricKey] !== undefined && Number.isFinite(Number(row[metricKey])));
+  if (!usable.length) return `<div class="empty-chart">当前区间暂无可绘制的“${escapeHtml(config.label)}”数据</div>`;
   const width = 720;
-  const height = 220;
+  const height = 280;
   const pad = { left: 54, right: 20, top: 18, bottom: 36 };
   const dates = usable.map((row) => row.date);
-  const values = usable.map((row) => Number(row.premiumDiscountChangeCumulativeValue));
-  let min = Math.min(...values, 1);
-  let max = Math.max(...values, 1);
+  const values = usable.map((row) => Number(row[metricKey]));
+  const reference = config.baseline;
+  let min = reference === null ? Math.min(...values) : Math.min(...values, reference);
+  let max = reference === null ? Math.max(...values) : Math.max(...values, reference);
   const spread = Math.max(max - min, .01);
   min -= spread * .14;
   max += spread * .14;
@@ -190,50 +237,82 @@ function contractDetailChart(rows) {
   const ticks = Array.from({ length: 5 }, (_, index) => max - ((max - min) * index) / 4);
   const grid = ticks.map((tick) => `<g>
     <line x1="${pad.left}" x2="${width - pad.right}" y1="${y(tick)}" y2="${y(tick)}" class="grid-line"></line>
-    <text x="${pad.left - 10}" y="${y(tick) + 4}" text-anchor="end" class="axis-label">${fmt(tick, 4)}</text>
+    <text x="${pad.left - 10}" y="${y(tick) + 4}" text-anchor="end" class="axis-label">${fmt(tick, config.digits)}${config.suffix}</text>
   </g>`).join("");
-  const coordinates = usable.map((row, index) => `${x(index)},${y(Number(row.premiumDiscountChangeCumulativeValue))}`).join(" ");
+  const coordinates = usable.map((row, index) => `${x(index)},${y(Number(row[metricKey]))}`).join(" ");
   const dots = usable.map((row, index) => {
-    const pointValue = fmt(row.premiumDiscountChangeCumulativeValue, 6, false);
-    const rateValue = fmtPercent(row.premiumDiscountRatePct, 4, true);
-    const pointLabel = `${row.date} IC2612 升贴水率变动累计值 ${pointValue}`;
+    const pointValue = detailValue(row, metricKey);
+    const pointLabel = `${row.date} IC2612 ${config.label} ${pointValue}`;
+    const details = [
+      `合约价格 ${fmt(row.futuresPrice, 2)}`,
+      `合约涨跌幅 ${fmtPercent(row.priceChangePct, 2, true)}`,
+      `基差 ${fmt(row.basis, 2, true)}`,
+      `非年化升贴水率 ${fmtPercent(row.premiumDiscountRatePct, 4, true)}`,
+      `升贴水率变动 ${fmtPercent(row.premiumDiscountChangePct, 2, true)}`,
+      `年化升贴水率 ${fmtPercent(row.annualizedRate, 2, true)}`,
+      `剔除分红年化率 ${fmtPercent(row.adjustedAnnualizedRate, 2, true)}`,
+      `期内分红 ${fmt(row.periodDividend, 4)}`,
+      `剩余天数 ${row.remainingDays ?? "—"}`,
+    ].join(" · ");
     return `<g class="chart-point-group">
-      <circle class="chart-point-dot" cx="${x(index)}" cy="${y(Number(row.premiumDiscountChangeCumulativeValue))}"
+      <circle class="chart-point-dot" cx="${x(index)}" cy="${y(Number(row[metricKey]))}"
         r="${dates.length === 1 ? 4 : 2.8}" fill="#7c3aed"></circle>
-      <circle class="chart-point-hit" cx="${x(index)}" cy="${y(Number(row.premiumDiscountChangeCumulativeValue))}"
+      <circle class="chart-point-hit" cx="${x(index)}" cy="${y(Number(row[metricKey]))}"
         r="11" tabindex="0" role="button" aria-label="${escapeHtml(pointLabel)}"
         data-date="${escapeHtml(row.date)}" data-term="IC2612"
-        data-contract="IC2612" data-rate="${escapeHtml(rateValue)}"
-        data-label="升贴水率变动累计值" data-value="${escapeHtml(pointValue)}"></circle>
+        data-contract="IC2612" data-label="${escapeHtml(config.label)}"
+        data-value="${escapeHtml(pointValue)}" data-details="${escapeHtml(details)}"></circle>
     </g>`;
   }).join("");
-  const baseline = `<line x1="${pad.left}" x2="${width - pad.right}" y1="${y(1)}" y2="${y(1)}" class="zero-line"></line>`;
+  const baseline = reference === null ? "" : `<line x1="${pad.left}" x2="${width - pad.right}" y1="${y(reference)}" y2="${y(reference)}" class="zero-line"></line>`;
   const labels = [0, Math.floor((dates.length - 1) / 2), dates.length - 1]
     .filter((value, index, array) => array.indexOf(value) === index)
     .map((index) => `<text x="${x(index)}" y="${height - 9}" text-anchor="middle" class="axis-label">${escapeHtml(dates[index])}</text>`).join("");
   return `<div class="chart-wrap detail-chart"><svg viewBox="0 0 ${width} ${height}" role="img"
-    aria-label="IC2612 升贴水率变动累计值">${grid}${baseline}<polyline points="${coordinates}" fill="none"
+    aria-label="IC2612 ${escapeHtml(config.label)}">${grid}${baseline}<polyline points="${coordinates}" fill="none"
     stroke="#7c3aed" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"></polyline>${dots}${labels}</svg>
     <div class="chart-tooltip" role="status" hidden></div></div>`;
 }
 
 function renderContractDetail(contract) {
   const section = byId("contract-detail");
-  const rows = state.payload.rows.filter((row) => row.contract === contract)
+  state.detailContract = contract;
+  const rows = state.payload.rows.filter((row) => row.contract === contract
+      && row.dataSource === "Wind 日频"
+      && (!state.startDate || row.date >= state.startDate)
+      && (!state.endDate || row.date <= state.endDate))
     .sort((a, b) => a.date.localeCompare(b.date));
   if (!rows.length) {
     section.hidden = false;
-    section.innerHTML = '<div class="empty-chart">IC2612 尚无历史数据</div>';
+    section.innerHTML = `<div class="detail-head"><div><span class="section-kicker">CONTRACT DRILL-DOWN</span>
+      <h3>${escapeHtml(contract)} 合约历史详情</h3>
+      <p>当前日期区间没有Wind日频数据，请扩大上方日期区间。</p></div>
+      <button id="close-contract-detail" type="button" class="detail-close">收起 ×</button></div>`;
+    byId("close-contract-detail").addEventListener("click", () => {
+      state.detailContract = null;
+      section.hidden = true;
+    });
     return;
   }
+  const options = Object.entries(DETAIL_METRICS).map(([key, config]) =>
+    `<option value="${key}" ${key === state.detailMetric ? "selected" : ""}>${escapeHtml(config.label)}</option>`
+  ).join("");
   section.innerHTML = `<div class="detail-head"><div><span class="section-kicker">CONTRACT DRILL-DOWN</span>
     <h3>${escapeHtml(contract)} 合约历史详情</h3>
-    <p>${rows.length} 个日频观测；可悬停或点击曲线查看升贴水率变动累计值。具体日频数据保留在 Windows 本地数据库中。</p></div>
-    <button id="close-contract-detail" type="button" class="detail-close">收起 ×</button></div>
-    ${contractDetailChart(rows)}`;
+    <p>${rows.length} 个Wind日频观测；调整上方日期区间会同步刷新本图和明细表。历史早期只有期内分红及剔除分红年化率允许为空。</p></div>
+    <div class="detail-actions"><select id="detail-metric-select" aria-label="IC2612详情图指标">${options}</select>
+    <button id="close-contract-detail" type="button" class="detail-close">收起 ×</button></div></div>
+    ${contractDetailChart(rows, state.detailMetric)}${contractDetailTable(rows)}`;
   section.hidden = false;
   bindChartPointInteractions(section);
-  byId("close-contract-detail").addEventListener("click", () => { section.hidden = true; });
+  byId("detail-metric-select").addEventListener("change", (event) => {
+    state.detailMetric = event.target.value;
+    renderContractDetail(contract);
+  });
+  byId("close-contract-detail").addEventListener("click", () => {
+    state.detailContract = null;
+    section.hidden = true;
+  });
   section.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -243,6 +322,7 @@ function filteredRows() {
     && state.terms.has(row.term)
     && (!state.startDate || row.date >= state.startDate)
     && (!state.endDate || row.date <= state.endDate)
+    && (state.metric === "adjustedAnnualizedRate" || row.dataSource === "Wind 日频")
   );
 }
 
@@ -369,7 +449,8 @@ function showChartTooltip(point, event = null) {
   tooltip.textContent = `${point.dataset.date} · ${point.dataset.term} · `
     + `${metricLabel} ${point.dataset.value}`
     + (point.dataset.contract ? ` · 合约 ${point.dataset.contract}` : "")
-    + (point.dataset.rate ? ` · 非年化升贴水率 ${point.dataset.rate}` : "");
+    + (point.dataset.rate ? ` · 非年化升贴水率 ${point.dataset.rate}` : "")
+    + (point.dataset.details ? ` · ${point.dataset.details}` : "");
   tooltip.hidden = false;
 
   const wrapRect = wrap.getBoundingClientRect();
@@ -464,6 +545,7 @@ function renderAll() {
     : "尚未同步";
   byId("chart-grid").innerHTML = '<div class="empty-chart">正在绘制历史图表…</div>';
   requestAnimationFrame(() => renderCharts());
+  if (state.detailContract) renderContractDetail(state.detailContract);
 }
 
 async function loadData() {
@@ -496,16 +578,16 @@ function bindEvents() {
   byId("theme-red").addEventListener("click", () => applyTheme("red"));
   byId("start-date").addEventListener("change", (event) => {
     state.startDate = event.target.value;
-    renderCharts();
+    renderAll();
   });
   byId("end-date").addEventListener("change", (event) => {
     state.endDate = event.target.value;
-    renderCharts();
+    renderAll();
   });
   byId("metric-select").addEventListener("change", (event) => {
     state.metric = event.target.value;
     resetDateRangeForMetric();
-    renderCharts();
+    renderAll();
   });
   byId("chart-grid").addEventListener("click", (event) => {
     if (!event.target.closest(".chart-point-hit")) hideChartTooltips();
