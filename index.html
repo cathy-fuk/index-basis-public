@@ -9,7 +9,7 @@
   <meta name="description" content="四大股指期货基差、期内分红校正与年化升贴水率历史走势">
   <meta name="color-scheme" content="light">
   <title>股指期货基差监控</title>
-  <link rel="stylesheet" href="./styles.css?v=20260805-55">
+  <link rel="stylesheet" href="./styles.css?v=20260805-57">
 </head>
 <body>
   <main>
@@ -83,7 +83,8 @@
         ⓘ 普通行情、基差、升贴水率变动及普通年化率只采用 Wind 日频；期内分红和年化升贴水率
         （剔除期内分红）完整采用
         <a href="https://web.tinysoft.com.cn/website/index.tsl?PageID=27433"
-           target="_blank" rel="noopener noreferrer">Tinysoft</a>，不等待 Wind。
+           target="_blank" rel="noopener noreferrer">Tinysoft</a>，并按 Wind
+        确定的同一交易日、同一具体合约精确对齐。
       </div>
     </section>
 
@@ -103,8 +104,10 @@
         比值失真；表格仍使用上面的相对变动率。</p>
       <p>年化升贴水率（剔除期内分红）完整采用 Tinysoft 同一快照：
         （基差＋期内分红）÷现货×365÷剩余日历天数。</p>
-      <p>普通行情、基差、非年化及普通年化指标只取Wind日频；历史上尚未开始
-        Tinysoft采集的日期，仅期内分红与剔除分红年化率允许为空。</p>
+      <p>Wind先确定每个交易日的当月、下月、当季、下季具体合约；普通行情、
+        基差、非年化及普通年化指标只取Wind日频。Tinysoft只按日期＋准确合约
+        补充分红字段；历史上尚未开始Tinysoft采集或未匹配的日期，仅期内分红
+        与剔除分红年化率允许为空。</p>
       <p>所有表格和曲线均保留正负号，不取绝对值；负数表示贴水。</p>
     </details>
 
@@ -128,6 +131,6 @@
       <span>基差口径：期货－现货</span>
     </footer>
   </main>
-  <script src="./app.js?v=20260805-55" defer></script>
+  <script src="./app.js?v=20260805-57" defer></script>
 </body>
 </html>

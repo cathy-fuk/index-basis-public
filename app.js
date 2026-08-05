@@ -3,16 +3,18 @@
 const PREFIXES = ["IH", "IF", "IC", "IM"];
 const TERMS = ["当月", "下月", "当季", "下季"];
 const INDEX_NAMES = { IH: "上证50", IF: "沪深300", IC: "中证500", IM: "中证1000" };
-const TERM_COLORS = { 当月: "#2563eb", 下月: "#0f9fa8", 当季: "#f59e0b", 下季: "#8b5cf6" };
+const TERM_PALETTES = {
+  blue: { 当月: "#93c5fd", 下月: "#60a5fa", 当季: "#2563eb", 下季: "#1e40af" },
+  red: { 当月: "#fda4af", 下月: "#fb7185", 当季: "#ef4444", 下季: "#991b1b" },
+};
 const METRIC_LABELS = {
   annualizedRate: "年化升贴水率",
   adjustedAnnualizedRate: "年化升贴水率（剔除期内分红）",
   spotCumulativeValue: "指数累计值",
   termPremiumDiscountChangeCumulativeValue: "升贴水率变动累计值",
 };
-const PREFIX_COLORS = { IH: "#2563eb", IF: "#0891b2", IC: "#7c3aed", IM: "#ea580c" };
 const DETAIL_METRICS = {
-  premiumDiscountChangeCumulativeValue: { label: "升贴水率变动累计值", digits: 6, suffix: "", baseline: 1 },
+  termPremiumDiscountChangeCumulativeValue: { label: "升贴水率变动累计值", digits: 6, suffix: "", baseline: 1 },
   futuresPrice: { label: "合约价格", digits: 2, suffix: "", baseline: null },
   priceChangePct: { label: "合约涨跌幅", digits: 2, suffix: "%", baseline: 0 },
   basis: { label: "基差", digits: 2, suffix: "", baseline: 0 },
@@ -30,8 +32,8 @@ const state = {
   metric: "annualizedRate",
   startDate: "",
   endDate: "",
-  detailContract: null,
-  detailMetric: "premiumDiscountChangeCumulativeValue",
+  detailScope: null,
+  detailMetric: "termPremiumDiscountChangeCumulativeValue",
 };
 
 const byId = (id) => document.getElementById(id);
@@ -47,6 +49,9 @@ const fmt = (value, digits = 2, sign = false) => {
 const fmtPercent = (value, digits = 2, sign = false) =>
   value === null || value === undefined ? "—" : `${fmt(value, digits, sign)}%`;
 const valueClass = (value) => Number(value) >= 0 ? "positive" : "negative";
+const currentTheme = () => document.documentElement.dataset.theme === "red" ? "red" : "blue";
+const termColor = (term) => TERM_PALETTES[currentTheme()][term];
+const primaryChartColor = () => currentTheme() === "red" ? "#ef4444" : "#2563eb";
 
 function setNotice(message, isError = false) {
   const notice = byId("notice");
@@ -81,6 +86,7 @@ function applyTheme(theme) {
   localStorage.setItem("indexBasisTheme", safeTheme);
   byId("theme-blue").classList.toggle("active", safeTheme === "blue");
   byId("theme-red").classList.toggle("active", safeTheme === "red");
+  if (state.payload.rows.length) renderAll();
 }
 
 function validMetricDates() {
@@ -169,8 +175,8 @@ function renderTable(rows) {
     return;
   }
   body.innerHTML = rows.map((row) => `<tr>
-    <td>${row.contract === "IC2612"
-      ? '<button type="button" class="contract-link" data-contract="IC2612" title="查看 IC2612 历史详情">IC2612</button>'
+    <td>${row.prefix === "IC" && row.term === "当季"
+      ? `<button type="button" class="contract-link" data-ic-quarter="true" title="查看 IC 当季合约详情">${escapeHtml(row.contract)}</button>`
       : `<strong>${escapeHtml(row.contract)}</strong>`}<small>${escapeHtml(row.term)}</small></td>
     <td>${fmt(row.futuresPrice)}</td>
     <td class="${valueClass(row.priceChange)}">${fmt(row.priceChange, 2, true)}</td>
@@ -183,20 +189,21 @@ function renderTable(rows) {
     <td>${escapeHtml(row.remainingDays)}</td>
     <td>${escapeHtml(row.expiryDate)}</td>
   </tr>`).join("");
-  document.querySelectorAll("[data-contract='IC2612']").forEach((button) => {
-    button.addEventListener("click", () => renderContractDetail("IC2612"));
+  document.querySelectorAll("[data-ic-quarter='true']").forEach((button) => {
+    button.addEventListener("click", () => renderContractDetail());
   });
 }
 
 function detailValue(row, key) {
   const config = DETAIL_METRICS[key];
   if (!config || row[key] === null || row[key] === undefined) return "—";
-  return `${fmt(row[key], config.digits, !["futuresPrice", "periodDividend", "premiumDiscountChangeCumulativeValue"].includes(key))}${config.suffix}`;
+  return `${fmt(row[key], config.digits, !["futuresPrice", "periodDividend", "termPremiumDiscountChangeCumulativeValue"].includes(key))}${config.suffix}`;
 }
 
 function contractDetailTable(rows) {
   const body = [...rows].sort((a, b) => b.date.localeCompare(a.date)).map((row) => `<tr>
     <td>${escapeHtml(row.date)}</td>
+    <td>${escapeHtml(row.contract)}</td>
     <td>${fmt(row.futuresPrice, 2)}</td>
     <td class="${valueClass(row.priceChangePct)}">${fmtPercent(row.priceChangePct, 2, true)}</td>
     <td class="${valueClass(row.basis)}">${fmt(row.basis, 2, true)}</td>
@@ -206,11 +213,11 @@ function contractDetailTable(rows) {
     <td class="adjusted">${fmtPercent(row.adjustedAnnualizedRate, 2, true)}</td>
     <td>${fmt(row.periodDividend, 4)}</td>
     <td>${escapeHtml(row.remainingDays)}</td>
-    <td>${fmt(row.premiumDiscountChangeCumulativeValue, 6)}</td>
+    <td>${fmt(row.termPremiumDiscountChangeCumulativeValue, 6)}</td>
   </tr>`).join("");
   return `<details class="detail-data"><summary>查看日频明细数据（${rows.length} 行）</summary>
     <div class="table-scroll"><table class="detail-table"><thead><tr>
-      <th>日期</th><th>合约价格</th><th>合约涨跌幅</th><th>基差</th>
+      <th>日期</th><th>实际合约</th><th>合约价格</th><th>合约涨跌幅</th><th>基差</th>
       <th>非年化升贴水率</th><th>升贴水率变动</th><th>年化升贴水率</th>
       <th class="adjusted">剔除分红年化率</th><th>期内分红</th><th>剩余天数</th><th>累计值</th>
     </tr></thead><tbody>${body}</tbody></table></div></details>`;
@@ -242,8 +249,9 @@ function contractDetailChart(rows, metricKey) {
   const coordinates = usable.map((row, index) => `${x(index)},${y(Number(row[metricKey]))}`).join(" ");
   const dots = usable.map((row, index) => {
     const pointValue = detailValue(row, metricKey);
-    const pointLabel = `${row.date} IC2612 ${config.label} ${pointValue}`;
+    const pointLabel = `${row.date} ${row.contract}（IC当季）${config.label} ${pointValue}`;
     const details = [
+      `实际合约 ${row.contract}`,
       `合约价格 ${fmt(row.futuresPrice, 2)}`,
       `合约涨跌幅 ${fmtPercent(row.priceChangePct, 2, true)}`,
       `基差 ${fmt(row.basis, 2, true)}`,
@@ -256,11 +264,11 @@ function contractDetailChart(rows, metricKey) {
     ].join(" · ");
     return `<g class="chart-point-group">
       <circle class="chart-point-dot" cx="${x(index)}" cy="${y(Number(row[metricKey]))}"
-        r="${dates.length === 1 ? 4 : 2.8}" fill="#7c3aed"></circle>
+        r="${dates.length === 1 ? 4 : 2.8}" fill="${primaryChartColor()}"></circle>
       <circle class="chart-point-hit" cx="${x(index)}" cy="${y(Number(row[metricKey]))}"
         r="11" tabindex="0" role="button" aria-label="${escapeHtml(pointLabel)}"
-        data-date="${escapeHtml(row.date)}" data-term="IC2612"
-        data-contract="IC2612" data-label="${escapeHtml(config.label)}"
+        data-date="${escapeHtml(row.date)}" data-term="当季"
+        data-contract="${escapeHtml(row.contract)}" data-label="${escapeHtml(config.label)}"
         data-value="${escapeHtml(pointValue)}" data-details="${escapeHtml(details)}"></circle>
     </g>`;
   }).join("");
@@ -269,15 +277,15 @@ function contractDetailChart(rows, metricKey) {
     .filter((value, index, array) => array.indexOf(value) === index)
     .map((index) => `<text x="${x(index)}" y="${height - 9}" text-anchor="middle" class="axis-label">${escapeHtml(dates[index])}</text>`).join("");
   return `<div class="chart-wrap detail-chart"><svg viewBox="0 0 ${width} ${height}" role="img"
-    aria-label="IC2612 ${escapeHtml(config.label)}">${grid}${baseline}<polyline points="${coordinates}" fill="none"
-    stroke="#7c3aed" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"></polyline>${dots}${labels}</svg>
+    aria-label="IC当季 ${escapeHtml(config.label)}">${grid}${baseline}<polyline points="${coordinates}" fill="none"
+    stroke="${primaryChartColor()}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"></polyline>${dots}${labels}</svg>
     <div class="chart-tooltip" role="status" hidden></div></div>`;
 }
 
-function renderContractDetail(contract) {
+function renderContractDetail() {
   const section = byId("contract-detail");
-  state.detailContract = contract;
-  const rows = state.payload.rows.filter((row) => row.contract === contract
+  state.detailScope = "IC当季";
+  const rows = state.payload.rows.filter((row) => row.prefix === "IC" && row.term === "当季"
       && row.dataSource === "Wind 日频"
       && (!state.startDate || row.date >= state.startDate)
       && (!state.endDate || row.date <= state.endDate))
@@ -285,11 +293,11 @@ function renderContractDetail(contract) {
   if (!rows.length) {
     section.hidden = false;
     section.innerHTML = `<div class="detail-head"><div><span class="section-kicker">CONTRACT DRILL-DOWN</span>
-      <h3>${escapeHtml(contract)} 合约历史详情</h3>
+      <h3>IC 当季合约详情</h3>
       <p>当前日期区间没有Wind日频数据，请扩大上方日期区间。</p></div>
       <button id="close-contract-detail" type="button" class="detail-close">收起 ×</button></div>`;
     byId("close-contract-detail").addEventListener("click", () => {
-      state.detailContract = null;
+      state.detailScope = null;
       section.hidden = true;
     });
     return;
@@ -297,20 +305,21 @@ function renderContractDetail(contract) {
   const options = Object.entries(DETAIL_METRICS).map(([key, config]) =>
     `<option value="${key}" ${key === state.detailMetric ? "selected" : ""}>${escapeHtml(config.label)}</option>`
   ).join("");
+  const contracts = [...new Set(rows.map((row) => row.contract))].join("、");
   section.innerHTML = `<div class="detail-head"><div><span class="section-kicker">CONTRACT DRILL-DOWN</span>
-    <h3>${escapeHtml(contract)} 合约历史详情</h3>
-    <p>${rows.length} 个Wind日频观测；调整上方日期区间会同步刷新本图和明细表。历史早期只有期内分红及剔除分红年化率允许为空。</p></div>
-    <div class="detail-actions"><select id="detail-metric-select" aria-label="IC2612详情图指标">${options}</select>
+    <h3>IC 当季合约详情</h3>
+    <p>${rows.length} 个 Wind 日频观测；涉及合约：${escapeHtml(contracts)}。当季合约换月时自动衔接；调整上方日期区间会同步刷新本图和明细表。历史早期只有期内分红及剔除分红年化率允许为空。</p></div>
+    <div class="detail-actions"><select id="detail-metric-select" aria-label="IC当季详情图指标">${options}</select>
     <button id="close-contract-detail" type="button" class="detail-close">收起 ×</button></div></div>
     ${contractDetailChart(rows, state.detailMetric)}${contractDetailTable(rows)}`;
   section.hidden = false;
   bindChartPointInteractions(section);
   byId("detail-metric-select").addEventListener("change", (event) => {
     state.detailMetric = event.target.value;
-    renderContractDetail(contract);
+    renderContractDetail();
   });
   byId("close-contract-detail").addEventListener("click", () => {
-    state.detailContract = null;
+    state.detailScope = null;
     section.hidden = true;
   });
   section.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -356,7 +365,7 @@ function chartSvg(rows, prefix) {
   const series = isIndexCumulative
     ? [{
       term: INDEX_NAMES[prefix],
-      color: PREFIX_COLORS[prefix],
+      color: primaryChartColor(),
       points: rows.filter((row) => row.prefix === prefix
         && row[state.metric] !== null && row[state.metric] !== undefined)
         .sort((a, b) => a.date.localeCompare(b.date))
@@ -364,7 +373,7 @@ function chartSvg(rows, prefix) {
     }]
     : TERMS.filter((term) => state.terms.has(term) && localTerms.has(term)).map((term) => ({
       term,
-      color: TERM_COLORS[term],
+      color: termColor(term),
       points: rows.filter((row) =>
         row.prefix === prefix && row.term === term
         && row[state.metric] !== null && row[state.metric] !== undefined
@@ -523,7 +532,7 @@ function renderCharts() {
         data-chart-prefix="${prefix}" data-legend-term="${term}"
         aria-pressed="${active}" ${globallyEnabled ? "" : "disabled"}
         title="${globallyEnabled ? `仅在${prefix}图中显示或隐藏${term}` : `请先在上方期限筛选中启用${term}`}">
-        <i style="background:${TERM_COLORS[term]}"></i>${term}</button>`;
+        <i style="background:${termColor(term)}"></i>${term}</button>`;
     }).join("");
     return `<article class="chart-card">
       <div class="chart-title"><div><strong>${prefix} · ${INDEX_NAMES[prefix]}</strong>
@@ -545,7 +554,7 @@ function renderAll() {
     : "尚未同步";
   byId("chart-grid").innerHTML = '<div class="empty-chart">正在绘制历史图表…</div>';
   requestAnimationFrame(() => renderCharts());
-  if (state.detailContract) renderContractDetail(state.detailContract);
+  if (state.detailScope) renderContractDetail();
 }
 
 async function loadData() {
