@@ -96,7 +96,7 @@ input, select { min-height: 37px; padding: 7px 10px; border: 1px solid var(--lin
 .unavailable { color: #9aa2b1 !important; }
 .table-shell { margin-top: 17px; overflow: hidden; background: white; border: 1px solid var(--line); border-radius: 17px; box-shadow: 0 11px 30px rgba(36,45,63,.06); }
 .table-scroll { overflow-x: auto; }
-table { width: 100%; border-collapse: collapse; min-width: 1240px; font-size: 12px; }
+table { width: 100%; border-collapse: collapse; min-width: 1430px; font-size: 12px; }
 th { padding: 13px 12px; color: #5e6778; background: #f7f8fa; font-weight: 750; text-align: right; white-space: nowrap; }
 th:first-child, td:first-child { text-align: left; }
 td { padding: 12px; border-top: 1px solid var(--line); text-align: right; white-space: nowrap; }
@@ -116,7 +116,7 @@ td small { display: block; margin-top: 2px; color: #9aa2b1; }
 .detail-close { padding: 7px 10px; color: var(--muted); background: #f7f8fa; border: 1px solid var(--line); border-radius: 8px; }
 .detail-data { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 12px; }
 .detail-data summary { cursor: pointer; color: var(--ink); font-size: 12px; font-weight: 750; }
-.detail-table { margin-top: 10px; min-width: 1320px; }
+.detail-table { margin-top: 10px; min-width: 1510px; }
 .detail-chart { max-width: 1080px; margin-inline: auto; }
 .formula { margin-top: 12px; padding: 13px 16px; background: white; border: 1px solid var(--line); border-radius: 12px; }
 .formula summary { cursor: pointer; font-weight: 700; font-size: 13px; }
