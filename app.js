@@ -280,24 +280,34 @@ function contractDetailChart(rows, metricKey) {
     .filter((value, index, array) => array.indexOf(value) === index)
     .map((index) => `<text x="${x(dates[index])}" y="${height - 10}" text-anchor="middle" class="axis-label">${escapeHtml(dates[index])}</text>`).join("");
   const lastPoint = usable[usable.length - 1];
+  const normalizationNote = metricKey === "termPremiumDiscountChangeCumulativeValue"
+    ? " · 当前区间首点=1"
+    : "";
   const endpoint = `<circle class="chart-end-dot" cx="${x(lastPoint.date)}"
     cy="${y(Number(lastPoint[metricKey]))}" r="3.8" fill="${primaryChartColor()}"
     stroke="white" stroke-width="1.8"></circle>`;
-  return `<div class="chart-wrap detail-chart"><svg viewBox="0 0 ${width} ${height}" role="img"
+  return `<article class="chart-card detail-chart-card">
+    <div class="chart-title"><div><strong>IC · 中证500 · 当季</strong>
+      <small>${usable.length} 个有效交易日 · ${escapeHtml(config.label)}${normalizationNote}</small></div></div>
+    <div class="chart-wrap detail-chart"><svg viewBox="0 0 ${width} ${height}" role="img"
     aria-label="IC当季 ${escapeHtml(config.label)}">${grid}${baseline}<polyline points="${coordinates}" fill="none"
     class="term-line" stroke="${primaryChartColor()}" stroke-width="2.7" stroke-linejoin="round"
     stroke-linecap="round" vector-effect="non-scaling-stroke"></polyline>${dots}${endpoint}${labels}</svg>
-    <div class="chart-tooltip" role="status" hidden></div></div>`;
+    <div class="chart-tooltip" role="status" hidden></div></div></article>`;
 }
 
 function renderContractDetail() {
   const section = byId("contract-detail");
   state.detailScope = "IC当季";
-  const rows = state.payload.rows.filter((row) => row.prefix === "IC" && row.term === "当季"
+  let rows = state.payload.rows.filter((row) => row.prefix === "IC" && row.term === "当季"
       && row.dataSource === "Wind 日频"
       && (!state.startDate || row.date >= state.startDate)
       && (!state.endDate || row.date <= state.endDate))
     .sort((a, b) => a.date.localeCompare(b.date));
+  rows = rebaseCumulativeRows(
+    rows,
+    "termPremiumDiscountChangeCumulativeValue",
+  );
   if (!rows.length) {
     section.hidden = false;
     section.innerHTML = `<div class="detail-head"><div><span class="section-kicker">CONTRACT DRILL-DOWN</span>
@@ -316,7 +326,7 @@ function renderContractDetail() {
   const contracts = [...new Set(rows.map((row) => row.contract))].join("、");
   section.innerHTML = `<div class="detail-head"><div><span class="section-kicker">CONTRACT DRILL-DOWN</span>
     <h3>IC 当季合约详情</h3>
-    <p>${rows.length} 个 Wind 日频观测；涉及合约：${escapeHtml(contracts)}。当季合约换月时自动衔接；调整上方日期区间会同步刷新本图和明细表。Tinysoft 尚未采集或相邻日不完整时，期内分红、剔除分红年化率及剔除分红变动允许为空。</p></div>
+    <p>${rows.length} 个 Wind 日频观测；涉及合约：${escapeHtml(contracts)}。当季合约换月时自动衔接；调整日期区间会同步刷新本图和明细表，并将新区间首个累计值重新归一化为1。Tinysoft 尚未采集或相邻日不完整时，期内分红、剔除分红年化率及剔除分红变动允许为空。</p></div>
     <div class="detail-actions"><select id="detail-metric-select" aria-label="IC当季详情图指标">${options}</select>
     <button id="close-contract-detail" type="button" class="detail-close">收起 ×</button></div></div>
     ${contractDetailChart(rows, state.detailMetric)}${contractDetailTable(rows)}`;
@@ -362,6 +372,24 @@ function sampleChartPoints(points, maxPoints = 180) {
   return [...required].sort((a, b) => a - b).map((index) => points[index]);
 }
 
+function rebaseCumulativeRows(rows, metricKey) {
+  const first = rows.find((row) => row[metricKey] !== null
+    && row[metricKey] !== undefined && Number.isFinite(Number(row[metricKey]))
+    && Number(row[metricKey]) !== 0);
+  if (!first) return rows.map((row) => ({ ...row, [metricKey]: null }));
+  const anchor = Number(first[metricKey]);
+  return rows.map((row) => {
+    if (row[metricKey] === null || row[metricKey] === undefined) {
+      return { ...row, [metricKey]: null };
+    }
+    const value = Number(row[metricKey]);
+    return {
+      ...row,
+      [metricKey]: Number.isFinite(value) ? value / anchor : null,
+    };
+  });
+}
+
 function chartSvg(rows, prefix) {
   const width = 720;
   const height = 300;
@@ -370,7 +398,7 @@ function chartSvg(rows, prefix) {
   const isPremiumCumulative = state.metric === "termPremiumDiscountChangeCumulativeValue";
   const isCumulative = isIndexCumulative || isPremiumCumulative;
   const localTerms = state.chartTerms[prefix];
-  const series = isIndexCumulative
+  let series = isIndexCumulative
     ? [{
       term: INDEX_NAMES[prefix],
       color: primaryChartColor(),
@@ -387,6 +415,12 @@ function chartSvg(rows, prefix) {
         && row[state.metric] !== null && row[state.metric] !== undefined
       ).sort((a, b) => a.date.localeCompare(b.date)),
     })).filter((item) => item.points.length);
+  if (isCumulative) {
+    series = series.map((item) => ({
+      ...item,
+      points: rebaseCumulativeRows(item.points, state.metric),
+    }));
+  }
   const all = series.flatMap((item) => item.points);
   if (!all.length) return '<div class="empty-chart">该区间暂无可绘制数据</div>';
 
@@ -516,9 +550,9 @@ function renderCharts() {
     ? "指数累计值走势"
     : isPremiumCumulative ? "IC、IM 升贴水率变动累计值" : "年化升贴水率走势";
   byId("trend-subtitle").textContent = isIndexCumulative
-    ? "每个指数的首个 Wind 交易日为 1，后续按指数日涨跌幅逐日连乘。"
+    ? "当前日期区间的首个有效点动态归一化为1；调整起始日期后立即重新定基。"
     : isPremiumCumulative
-      ? "仅展示 IC、IM；四条线分别代表当月、下月、当季、下季连续期限。换合约日承接前值，不计入新旧合约水平差；表格与图表均使用日度百分点差。"
+      ? "仅展示 IC、IM；每个期限在当前区间首个有效点动态归一化为1。换合约日承接前值，不计入新旧合约水平差。"
       : "贴水显示在零轴下方；区间、指数与期限均可调整。";
   const rows = filteredRows();
   const selectedPrefixes = PREFIXES.filter((prefix) => state.prefixes.has(prefix)

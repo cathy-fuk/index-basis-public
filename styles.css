@@ -106,18 +106,19 @@ td small { display: block; margin-top: 2px; color: #9aa2b1; }
 .table-note { padding: 11px 14px; color: var(--muted); background: #fafbfc; border-top: 1px solid var(--line); font-size: 11px; }
 .contract-link { padding: 0; color: var(--accent-dark); background: transparent; border: 0; border-bottom: 1px dashed color-mix(in srgb, var(--accent) 55%, white); font-weight: 800; }
 .contract-link:hover { border-bottom-style: solid; }
-.contract-detail { margin-top: 16px; padding: 20px; background: white; border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line)); border-radius: 17px; box-shadow: 0 12px 34px rgba(36,45,63,.08); scroll-margin-top: 18px; }
+.contract-detail { margin-top: 22px; padding: 0; background: transparent; border: 0; box-shadow: none; scroll-margin-top: 18px; }
 .contract-detail[hidden] { display: none; }
-.detail-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+.detail-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 14px; padding: 0 2px; }
 .detail-head h3 { margin: 4px 0; font-size: 20px; }
 .detail-head p { margin: 0; color: var(--muted); font-size: 11px; }
 .detail-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
 .detail-actions select { min-width: 230px; max-width: 330px; }
 .detail-close { padding: 7px 10px; color: var(--muted); background: #f7f8fa; border: 1px solid var(--line); border-radius: 8px; }
-.detail-data { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 12px; }
+.detail-data { margin-top: 16px; padding: 14px 16px; background: white; border: 1px solid var(--line); border-radius: 17px; box-shadow: 0 11px 30px rgba(36,45,63,.06); }
 .detail-data summary { cursor: pointer; color: var(--ink); font-size: 12px; font-weight: 750; }
 .detail-table { margin-top: 10px; min-width: 1510px; }
-.detail-chart { max-width: 1080px; margin-inline: auto; }
+.detail-chart-card { width: min(100%, 860px); margin-inline: auto; }
+.detail-chart { margin-top: 10px; }
 .formula { margin-top: 12px; padding: 13px 16px; background: white; border: 1px solid var(--line); border-radius: 12px; }
 .formula summary { cursor: pointer; font-weight: 700; font-size: 13px; }
 .formula p { margin: 10px 0 0; color: var(--muted); font-size: 12px; line-height: 1.7; }

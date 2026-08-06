@@ -9,7 +9,7 @@
   <meta name="description" content="四大股指期货基差、期内分红校正与年化升贴水率历史走势">
   <meta name="color-scheme" content="light">
   <title>股指期货基差监控</title>
-  <link rel="stylesheet" href="./styles.css?v=20260805-58">
+  <link rel="stylesheet" href="./styles.css?v=20260806-59">
 </head>
 <body>
   <main>
@@ -102,6 +102,9 @@
         下季四个期限桶分别以1为基准连续拼接。换合约当天承接前值，
         不把新旧合约水平差计入变动。表格和图表统一使用百分点差，避免前日
         升贴水率接近0时相对比值失真。</p>
+      <p>所有累计曲线都会在当前日期区间内动态归一化：区间首个有效点设为1，
+        后续可见点等于完整历史累计值÷该区间首个累计值。调整日期仅改变展示基准，
+        不修改数据库或JSON中的完整历史数据。</p>
       <p>年化升贴水率（剔除期内分红）完整采用 Tinysoft 同一快照：
         （基差＋期内分红）÷现货×365÷剩余日历天数。升贴水率变动
         （剔除期内分红）＝当日剔除分红非年化升贴水率－前一交易日
@@ -133,6 +136,6 @@
       <span>基差口径：期货－现货</span>
     </footer>
   </main>
-  <script src="./app.js?v=20260805-58" defer></script>
+  <script src="./app.js?v=20260806-59" defer></script>
 </body>
 </html>
