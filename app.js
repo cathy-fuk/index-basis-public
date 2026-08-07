@@ -3,6 +3,8 @@
 const PREFIXES = ["IH", "IF", "IC", "IM"];
 const TERMS = ["当月", "下月", "当季", "下季"];
 const INDEX_NAMES = { IH: "上证50", IF: "沪深300", IC: "中证500", IM: "中证1000" };
+const DETAIL_PREFIXES = new Set(["IC", "IM"]);
+const DETAIL_TERMS = new Set(["当季", "下季"]);
 const TERM_PALETTES = {
   blue: { 当月: "#93c5fd", 下月: "#60a5fa", 当季: "#2563eb", 下季: "#1e40af" },
   red: { 当月: "#fda4af", 下月: "#fb7185", 当季: "#ef4444", 下季: "#991b1b" },
@@ -176,8 +178,9 @@ function renderTable(rows) {
     return;
   }
   body.innerHTML = rows.map((row) => `<tr>
-    <td>${row.prefix === "IC" && row.term === "当季"
-      ? `<button type="button" class="contract-link" data-ic-quarter="true" title="查看 IC 当季合约详情">${escapeHtml(row.contract)}</button>`
+    <td>${DETAIL_PREFIXES.has(row.prefix) && DETAIL_TERMS.has(row.term)
+      ? `<button type="button" class="contract-link" data-detail-prefix="${row.prefix}"
+          data-detail-term="${row.term}" title="查看 ${row.prefix} ${row.term}合约详情">${escapeHtml(row.contract)}</button>`
       : `<strong>${escapeHtml(row.contract)}</strong>`}<small>${escapeHtml(row.term)}</small></td>
     <td>${fmt(row.futuresPrice)}</td>
     <td class="${valueClass(row.priceChange)}">${fmt(row.priceChange, 2, true)}</td>
@@ -191,8 +194,11 @@ function renderTable(rows) {
     <td>${escapeHtml(row.remainingDays)}</td>
     <td>${escapeHtml(row.expiryDate)}</td>
   </tr>`).join("");
-  document.querySelectorAll("[data-ic-quarter='true']").forEach((button) => {
-    button.addEventListener("click", () => renderContractDetail());
+  document.querySelectorAll("[data-detail-prefix][data-detail-term]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.detailScope = { prefix: button.dataset.detailPrefix, term: button.dataset.detailTerm };
+      renderContractDetail();
+    });
   });
 }
 
@@ -228,7 +234,7 @@ function contractDetailTable(rows) {
     </tr></thead><tbody>${body}</tbody></table></div></details>`;
 }
 
-function contractDetailChart(rows, metricKey) {
+function contractDetailChart(rows, metricKey, prefix, term) {
   const config = DETAIL_METRICS[metricKey];
   const usable = rows.filter((row) => row[metricKey] !== null
     && row[metricKey] !== undefined && Number.isFinite(Number(row[metricKey])));
@@ -256,7 +262,7 @@ function contractDetailChart(rows, metricKey) {
   const coordinates = usable.map((row) => `${x(row.date)},${y(Number(row[metricKey]))}`).join(" ");
   const dots = sampleChartPoints(usable).map((row) => {
     const pointValue = detailValue(row, metricKey);
-    const pointLabel = `${row.date} ${row.contract}（IC当季）${config.label} ${pointValue}`;
+    const pointLabel = `${row.date} ${row.contract}（${prefix}${term}）${config.label} ${pointValue}`;
     const details = [
       `实际合约 ${row.contract}`,
       `合约价格 ${fmt(row.futuresPrice, 2)}`,
@@ -272,7 +278,7 @@ function contractDetailChart(rows, metricKey) {
     ].join(" · ");
     return `<circle class="chart-point-hit interactive-dot" cx="${x(row.date)}" cy="${y(Number(row[metricKey]))}"
         r="${dates.length === 1 ? 7 : 6}" tabindex="0" role="button" aria-label="${escapeHtml(pointLabel)}"
-        data-date="${escapeHtml(row.date)}" data-term="当季"
+        data-date="${escapeHtml(row.date)}" data-term="${escapeHtml(term)}"
         data-contract="${escapeHtml(row.contract)}" data-label="${escapeHtml(config.label)}"
         data-value="${escapeHtml(pointValue)}" data-details="${escapeHtml(details)}"></circle>`;
   }).join("");
@@ -288,10 +294,10 @@ function contractDetailChart(rows, metricKey) {
     cy="${y(Number(lastPoint[metricKey]))}" r="3.8" fill="${primaryChartColor()}"
     stroke="white" stroke-width="1.8"></circle>`;
   return `<article class="chart-card detail-chart-card">
-    <div class="chart-title"><div><strong>IC · 中证500 · 当季</strong>
+    <div class="chart-title"><div><strong>${prefix} · ${INDEX_NAMES[prefix]} · ${term}</strong>
       <small>${usable.length} 个有效交易日 · ${escapeHtml(config.label)}${normalizationNote}</small></div></div>
     <div class="chart-wrap detail-chart"><svg viewBox="0 0 ${width} ${height}" role="img"
-    aria-label="IC当季 ${escapeHtml(config.label)}">${grid}${baseline}<polyline points="${coordinates}" fill="none"
+    aria-label="${prefix}${term} ${escapeHtml(config.label)}">${grid}${baseline}<polyline points="${coordinates}" fill="none"
     class="term-line" stroke="${primaryChartColor()}" stroke-width="2.7" stroke-linejoin="round"
     stroke-linecap="round" vector-effect="non-scaling-stroke"></polyline>${dots}${endpoint}${labels}</svg>
     <div class="chart-tooltip" role="status" hidden></div></div></article>`;
@@ -299,8 +305,15 @@ function contractDetailChart(rows, metricKey) {
 
 function renderContractDetail() {
   const section = byId("contract-detail");
-  state.detailScope = "IC当季";
-  let rows = state.payload.rows.filter((row) => row.prefix === "IC" && row.term === "当季"
+  const prefix = state.detailScope?.prefix;
+  const term = state.detailScope?.term;
+  if (!DETAIL_PREFIXES.has(prefix) || !DETAIL_TERMS.has(term)) {
+    state.detailScope = null;
+    section.hidden = true;
+    return;
+  }
+  const detailTitle = `${prefix} ${term}合约详情`;
+  let rows = state.payload.rows.filter((row) => row.prefix === prefix && row.term === term
       && row.dataSource === "Wind 日频"
       && (!state.startDate || row.date >= state.startDate)
       && (!state.endDate || row.date <= state.endDate))
@@ -312,7 +325,7 @@ function renderContractDetail() {
   if (!rows.length) {
     section.hidden = false;
     section.innerHTML = `<div class="detail-head"><div><span class="section-kicker">CONTRACT DRILL-DOWN</span>
-      <h3>IC 当季合约详情</h3>
+      <h3>${detailTitle}</h3>
       <p>当前日期区间没有Wind日频数据，请扩大上方日期区间。</p></div>
       <button id="close-contract-detail" type="button" class="detail-close">收起 ×</button></div>`;
     byId("close-contract-detail").addEventListener("click", () => {
@@ -326,11 +339,11 @@ function renderContractDetail() {
   ).join("");
   const contracts = [...new Set(rows.map((row) => row.contract))].join("、");
   section.innerHTML = `<div class="detail-head"><div><span class="section-kicker">CONTRACT DRILL-DOWN</span>
-    <h3>IC 当季合约详情</h3>
-    <p>${rows.length} 个 Wind 日频观测；涉及合约：${escapeHtml(contracts)}。当季合约换月时自动衔接；调整日期区间会同步刷新本图和明细表，并将新区间首个累计值重新归一化为1。Tinysoft 尚未采集或相邻日不完整时，期内分红、剔除分红年化率及剔除分红变动允许为空。</p></div>
-    <div class="detail-actions"><select id="detail-metric-select" aria-label="IC当季详情图指标">${options}</select>
+    <h3>${detailTitle}</h3>
+    <p>${rows.length} 个 Wind 日频观测；涉及合约：${escapeHtml(contracts)}。${term}合约换月时自动衔接；调整日期区间会同步刷新本图和明细表，并将新区间首个累计值重新归一化为1。Tinysoft 尚未采集或相邻日不完整时，期内分红、剔除分红年化率及剔除分红变动允许为空。</p></div>
+    <div class="detail-actions"><select id="detail-metric-select" aria-label="${prefix}${term}详情图指标">${options}</select>
     <button id="close-contract-detail" type="button" class="detail-close">收起 ×</button></div></div>
-    ${contractDetailChart(rows, state.detailMetric)}${contractDetailTable(rows)}`;
+    ${contractDetailChart(rows, state.detailMetric, prefix, term)}${contractDetailTable(rows)}`;
   section.hidden = false;
   bindChartPointInteractions(section);
   byId("detail-metric-select").addEventListener("change", (event) => {
