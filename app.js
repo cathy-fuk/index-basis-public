@@ -3,8 +3,8 @@
 const PREFIXES = ["IH", "IF", "IC", "IM"];
 const TERMS = ["当月", "下月", "当季", "下季"];
 const INDEX_NAMES = { IH: "上证50", IF: "沪深300", IC: "中证500", IM: "中证1000" };
-const DETAIL_PREFIXES = new Set(["IC", "IM"]);
-const DETAIL_TERMS = new Set(["当季", "下季"]);
+const DETAIL_PREFIXES = new Set(PREFIXES);
+const DETAIL_TERMS = new Set(TERMS);
 const TERM_PALETTES = {
   blue: { 当月: "#93c5fd", 下月: "#60a5fa", 当季: "#2563eb", 下季: "#1e40af" },
   red: { 当月: "#fda4af", 下月: "#fb7185", 当季: "#ef4444", 下季: "#991b1b" },
