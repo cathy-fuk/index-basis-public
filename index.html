@@ -9,7 +9,7 @@
   <meta name="description" content="四大股指期货基差、期内分红校正与年化升贴水率历史走势">
   <meta name="color-scheme" content="light">
   <title>股指期货基差监控</title>
-  <link rel="stylesheet" href="./styles.css?v=20260807-60">
+  <link rel="stylesheet" href="./styles.css?v=20260807-64">
 </head>
 <body>
   <main>
@@ -93,7 +93,8 @@
 
     <details class="formula">
       <summary>查看计算口径与数据来源</summary>
-      <p>基差＝期货－现货；年化升贴水率＝基差÷现货×365÷剩余日历天数。</p>
+      <p>基差＝期货－现货；年化升贴水率＝基差÷现货×365÷剩余日历天数。
+        交割日仍显示剩余天数为0，但年化计算分母按最低1天处理，以避免除以0产生空值。</p>
       <p>非年化升贴水率＝基差÷现货指数；升贴水率变动＝
         当日非年化升贴水率－前一交易日非年化升贴水率，单位为百分点。</p>
       <p>指数累计值在每个指数的首个 Wind 交易日设为 1，此后按（1＋指数日涨跌幅）逐日连乘。</p>

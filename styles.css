@@ -116,7 +116,20 @@ td small { display: block; margin-top: 2px; color: #9aa2b1; }
 .detail-close { padding: 7px 10px; color: var(--muted); background: #f7f8fa; border: 1px solid var(--line); border-radius: 8px; }
 .detail-data { margin-top: 16px; padding: 14px 16px; background: white; border: 1px solid var(--line); border-radius: 17px; box-shadow: 0 11px 30px rgba(36,45,63,.06); }
 .detail-data summary { cursor: pointer; color: var(--ink); font-size: 12px; font-weight: 750; }
-.detail-table { margin-top: 10px; min-width: 1510px; }
+.detail-table {
+  width: 100%; min-width: 0; margin-top: 10px; table-layout: fixed;
+  font-size: 10px; font-variant-numeric: tabular-nums;
+}
+.detail-table th {
+  padding: 8px 4px; white-space: normal; line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.detail-table td {
+  padding: 8px 4px; white-space: nowrap; overflow: hidden;
+  text-overflow: clip; line-height: 1.2;
+}
+.detail-table th:nth-child(1), .detail-table td:nth-child(1) { width: 7.5%; }
+.detail-table th:nth-child(2), .detail-table td:nth-child(2) { width: 6.5%; }
 .detail-chart-card { width: min(100%, 860px); margin-inline: auto; }
 .detail-chart { margin-top: 10px; }
 .formula { margin-top: 12px; padding: 13px 16px; background: white; border: 1px solid var(--line); border-radius: 12px; }
