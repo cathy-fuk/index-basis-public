@@ -144,9 +144,13 @@ td small { display: block; margin-top: 2px; color: #9aa2b1; }
 .chart-end-dot { pointer-events: none; }
 .chart-point-dot { pointer-events: none; }
 .chart-point-hit { fill: transparent; stroke: transparent; cursor: crosshair; touch-action: manipulation; }
-.chart-point-hit.interactive-dot { stroke: transparent; stroke-width: 10; paint-order: stroke; }
+.chart-point-hit.interactive-dot { stroke: transparent; stroke-width: 14; paint-order: stroke; }
 .chart-point-hit.interactive-dot:hover,
-.chart-point-hit.interactive-dot:focus { fill: rgba(255,255,255,.78); stroke: rgba(37,99,235,.35); stroke-width: 2; outline: none; }
+.chart-point-hit.interactive-dot:focus,
+.chart-point-hit.interactive-dot.is-pinned { fill: rgba(255,255,255,.9); stroke: rgba(37,99,235,.55); stroke-width: 2.5; outline: none; }
+[data-theme="red"] .chart-point-hit.interactive-dot:hover,
+[data-theme="red"] .chart-point-hit.interactive-dot:focus,
+[data-theme="red"] .chart-point-hit.interactive-dot.is-pinned { stroke: rgba(239,68,68,.55); }
 .chart-point-group:hover .chart-point-dot,
 .chart-point-group:focus-within .chart-point-dot { stroke: white; stroke-width: 2.5; }
 .chart-tooltip {
@@ -154,6 +158,9 @@ td small { display: block; margin-top: 2px; color: #9aa2b1; }
   padding: 8px 10px; color: white; background: rgba(23,32,51,.94);
   border-radius: 8px; box-shadow: 0 7px 20px rgba(23,32,51,.2);
   font-size: 11px; line-height: 1.45; pointer-events: none; white-space: normal;
+}
+.chart-wrap[data-tooltip-pinned="1"] .chart-tooltip {
+  box-shadow: 0 0 0 1px rgba(255,255,255,.16), 0 9px 24px rgba(23,32,51,.28);
 }
 .chart-tooltip[hidden] { display: none; }
 .grid-line { stroke: #edf1f6; stroke-width: 1; }

@@ -211,19 +211,20 @@ function contractDetailTable(rows) {
     <td class="${valueClass(row.basis)}">${fmt(row.basis, 2, true)}</td>
     <td>${fmtPercent(row.premiumDiscountRatePct, 4, true)}</td>
     <td class="${valueClass(row.premiumDiscountChangePct)}">${fmtPercent(row.premiumDiscountChangePct, 2, true)}</td>
+    <td>${fmt(row.termPremiumDiscountChangeCumulativeValue, 6)}</td>
     <td class="adjusted ${valueClass(row.adjustedPremiumDiscountChangePct)}">${fmtPercent(row.adjustedPremiumDiscountChangePct, 2, true)}</td>
     <td>${fmtPercent(row.annualizedRate, 2, true)}</td>
     <td class="adjusted">${fmtPercent(row.adjustedAnnualizedRate, 2, true)}</td>
     <td>${fmt(row.periodDividend, 4)}</td>
     <td>${escapeHtml(row.remainingDays)}</td>
-    <td>${fmt(row.termPremiumDiscountChangeCumulativeValue, 6)}</td>
   </tr>`).join("");
   return `<details class="detail-data"><summary>查看日频明细数据（${rows.length} 行）</summary>
     <div class="table-scroll"><table class="detail-table"><thead><tr>
       <th>日期</th><th>实际合约</th><th>合约价格</th><th>合约涨跌幅</th><th>基差</th>
       <th>非年化升贴水率</th><th>升贴水率变动</th>
+      <th>升贴水率变动累计值</th>
       <th class="adjusted">升贴水率变动<br>（剔除期内分红）</th><th>年化升贴水率</th>
-      <th class="adjusted">剔除分红年化率</th><th>期内分红</th><th>剩余天数</th><th>累计值</th>
+      <th class="adjusted">剔除分红年化率</th><th>期内分红</th><th>剩余天数</th>
     </tr></thead><tbody>${body}</tbody></table></div></details>`;
 }
 
@@ -353,7 +354,7 @@ function filteredRows() {
   );
 }
 
-function sampleChartPoints(points, maxPoints = 180) {
+function sampleChartPoints(points, maxPoints = 480) {
   if (points.length <= maxPoints) return points;
   const required = new Set([0, points.length - 1]);
   points.forEach((row, index) => {
@@ -487,15 +488,43 @@ function chartSvg(rows, prefix) {
 
 function hideChartTooltips(except = null) {
   document.querySelectorAll(".chart-tooltip").forEach((tooltip) => {
-    if (tooltip !== except) tooltip.hidden = true;
+    if (tooltip !== except) {
+      tooltip.hidden = true;
+      tooltip.closest(".chart-wrap")?.removeAttribute("data-tooltip-pinned");
+    }
+  });
+  document.querySelectorAll(".chart-point-hit.is-pinned").forEach((point) => {
+    if (!except || point.closest(".chart-wrap")?.querySelector(".chart-tooltip") !== except) {
+      point.classList.remove("is-pinned");
+    }
   });
 }
 
-function showChartTooltip(point, event = null) {
+function clearChartTooltip(wrap) {
+  if (!wrap) return;
+  wrap.removeAttribute("data-tooltip-pinned");
+  wrap.querySelectorAll(".chart-point-hit.is-pinned").forEach((point) => {
+    point.classList.remove("is-pinned");
+  });
+  const tooltip = wrap.querySelector(".chart-tooltip");
+  if (tooltip) tooltip.hidden = true;
+}
+
+function pinnedChartWrap() {
+  return document.querySelector('.chart-wrap[data-tooltip-pinned="1"]');
+}
+
+function showChartTooltip(point, event = null, pin = false) {
   const wrap = point.closest(".chart-wrap");
   const tooltip = wrap ? wrap.querySelector(".chart-tooltip") : null;
   if (!wrap || !tooltip) return;
+  if (!pin && pinnedChartWrap()) return;
   hideChartTooltips(tooltip);
+  if (pin) {
+    clearChartTooltip(wrap);
+    wrap.dataset.tooltipPinned = "1";
+    point.classList.add("is-pinned");
+  }
   const metricLabel = point.dataset.label || METRIC_LABELS[state.metric];
   tooltip.textContent = `${point.dataset.date} · ${point.dataset.term} · `
     + `${metricLabel} ${point.dataset.value}`
@@ -517,15 +546,33 @@ function showChartTooltip(point, event = null) {
 }
 
 function bindChartPointInteractions(container = document) {
+  container.querySelectorAll(".chart-wrap").forEach((wrap) => {
+    if (wrap.dataset.wrapInteractionBound === "1") return;
+    wrap.dataset.wrapInteractionBound = "1";
+    wrap.addEventListener("pointerleave", () => {
+      if (wrap.dataset.tooltipPinned !== "1") clearChartTooltip(wrap);
+    });
+    wrap.addEventListener("click", (event) => {
+      if (!event.target.closest(".chart-point-hit")) clearChartTooltip(wrap);
+    });
+  });
   container.querySelectorAll(".chart-point-hit").forEach((point) => {
     if (point.dataset.interactionBound === "1") return;
     point.dataset.interactionBound = "1";
     point.addEventListener("pointerenter", (event) => showChartTooltip(point, event));
     point.addEventListener("pointermove", (event) => showChartTooltip(point, event));
+    point.addEventListener("pointerleave", () => {
+      const wrap = point.closest(".chart-wrap");
+      if (wrap?.dataset.tooltipPinned !== "1") clearChartTooltip(wrap);
+    });
     point.addEventListener("focus", () => showChartTooltip(point));
+    point.addEventListener("blur", () => {
+      const wrap = point.closest(".chart-wrap");
+      if (wrap?.dataset.tooltipPinned !== "1") clearChartTooltip(wrap);
+    });
     point.addEventListener("click", (event) => {
       event.stopPropagation();
-      showChartTooltip(point, event);
+      showChartTooltip(point, event, true);
     });
   });
 }
@@ -639,9 +686,6 @@ function bindEvents() {
     state.metric = event.target.value;
     resetDateRangeForMetric();
     renderAll();
-  });
-  byId("chart-grid").addEventListener("click", (event) => {
-    if (!event.target.closest(".chart-point-hit")) hideChartTooltips();
   });
 }
 
