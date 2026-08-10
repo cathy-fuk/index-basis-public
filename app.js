@@ -93,10 +93,13 @@ function applyTheme(theme) {
 }
 
 function validMetricDates() {
-  return state.payload.rows
-    .filter((row) => row[state.metric] !== null && row[state.metric] !== undefined
-      && (state.metric === "adjustedAnnualizedRate" || row.dataSource === "Wind 日频"))
-    .map((row) => row.date)
+  // The selectable interval is the stable Wind history window, not the first
+  // non-null observation of the currently selected metric. Tinysoft-adjusted
+  // fields can therefore remain blank before collection began without moving
+  // the date picker or hiding earlier Wind history.
+  return [...new Set(state.payload.rows
+    .filter((row) => row.dataSource === "Wind 日频" && row.date)
+    .map((row) => row.date))]
     .sort();
 }
 
@@ -225,10 +228,14 @@ function contractDetailTable(rows) {
     <td>${escapeHtml(row.remainingDays)}</td>
   </tr>`).join("");
   return `<details class="detail-data"><summary>查看日频明细数据（${rows.length} 行）</summary>
-    <div class="table-scroll"><table class="detail-table"><thead><tr>
+    <div class="table-scroll"><table class="detail-table"><colgroup>
+      <col style="width:6.5%"><col style="width:5%"><col style="width:6.5%"><col style="width:7%">
+      <col style="width:5.5%"><col style="width:10%"><col style="width:8%"><col style="width:9.5%">
+      <col style="width:10.5%"><col style="width:8%"><col style="width:10%"><col style="width:7.5%">
+      <col style="width:6%"></colgroup><thead><tr>
       <th>日期</th><th>实际合约</th><th>合约价格</th><th>合约涨跌幅</th><th>基差</th>
       <th>非年化升贴水率</th><th>升贴水率变动</th>
-      <th>升贴水率变动累计值</th>
+      <th>升贴水率变动<br>累计值</th>
       <th class="adjusted">升贴水率变动<br>（剔除期内分红）</th><th>年化升贴水率</th>
       <th class="adjusted">剔除分红年化率</th><th>期内分红</th><th>剩余天数</th>
     </tr></thead><tbody>${body}</tbody></table></div></details>`;
