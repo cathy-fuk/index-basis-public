@@ -118,17 +118,18 @@ td small { display: block; margin-top: 2px; color: #9aa2b1; }
 .detail-data summary { cursor: pointer; color: var(--ink); font-size: 12px; font-weight: 750; }
 .detail-table {
   width: 100%; min-width: 0; margin-top: 10px; table-layout: fixed;
-  font-size: 11px; font-variant-numeric: tabular-nums;
+  font-size: 14px; font-variant-numeric: tabular-nums;
 }
 .detail-table th {
-  padding: 8px 4px; white-space: normal; line-height: 1.25;
+  padding: 11px 3px; white-space: normal; font-size: 13px; line-height: 1.3;
   overflow-wrap: normal; word-break: keep-all;
 }
 .detail-table td {
-  padding: 8px 4px; white-space: nowrap; overflow: hidden;
-  text-overflow: clip; line-height: 1.25;
+  padding: 10px 3px; white-space: nowrap; overflow: hidden;
+  text-overflow: clip; line-height: 1.3;
 }
-.detail-table th:nth-child(-n+2), .detail-table td:nth-child(-n+2) { text-align: center; }
+.detail-table th:nth-child(1), .detail-table td:nth-child(1) { text-align: right; }
+.detail-table th:nth-child(2), .detail-table td:nth-child(2) { text-align: left; }
 .detail-chart-card { width: min(100%, 860px); margin-inline: auto; }
 .detail-chart { margin-top: 10px; }
 .formula { margin-top: 12px; padding: 13px 16px; background: white; border: 1px solid var(--line); border-radius: 12px; }
